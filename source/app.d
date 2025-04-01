@@ -6,9 +6,12 @@
 // Made for fun.
 
 // TODO: Add better error messages maybe.
+// TODO: Check GDC lib output one day.
+// TODO: Check GDC betterC output one day.
+// TODO: Clean maybe the dc part.
 // TODO: Make rpath work on OSX.
-// TODO: Add more build types. Ideas: lib, dll, o, ...
-// TODO: Add test mode.
+// TODO: Work on test build.
+// TODO: Add dc part for the ldc2target.
 
 enum usageInfo = `
 Usage:
@@ -25,14 +28,16 @@ enum argumentsInfo = `
 Arguments:
  -I=<source folder>
  -J=<assets folder>
- -L=<linker flags>
+ -L=<linker flag>
  -V=<version name>
  -R=<run argument>
  -a=<arguments file>
  -s=<section name>
  -o=<output file>
  -c=<dmd|ldc2|gdc>
- -b=<DEBUG|RELEASE>
+ -b=<TEST|DEBUG|DLL|LIB|OBJ|RELEASE|DLLR|LIBR|OBJR>
+ -t=<ldc2 target>
+ -x=<TRUE|FALSE>
  -q=<TRUE|FALSE>
 `[1 .. $ - 1];
 
@@ -48,6 +53,8 @@ enum Argument : ubyte {
     o,
     c,
     b,
+    t,
+    x,
     q,
 }
 
@@ -59,8 +66,15 @@ enum Boolean : ubyte {
 
 enum Build : ubyte {
     none,
+    TEST,
     DEBUG,
+    DLL,
+    LIB,
+    OBJ,
     RELEASE,
+    DLLR,
+    LIBR,
+    OBJR,
 }
 
 enum Compiler : ubyte {
@@ -80,9 +94,11 @@ struct CompilerOptions {
     IStr argumentsPath;
     IStr sectionName;
     IStr outputPath;
+    IStr ldc2Target;
     Compiler compiler;
     Build build;
     Boolean quiet;
+    Boolean xAndBetterC;
 }
 
 Argument strToArgument(IStr value) {
@@ -99,6 +115,8 @@ Argument strToArgument(IStr value) {
         case "o": return o;
         case "c": return c;
         case "b": return b;
+        case "t": return t;
+        case "x": return x;
         case "q": return q;
         default: return none;
     }
@@ -114,8 +132,15 @@ Boolean strToBoolean(IStr value) {
 
 Build strToBuild(IStr value) {
     with (Build) switch (value) {
+        case "TEST": return TEST;
         case "DEBUG": return DEBUG;
+        case "DLL": return DLL;
+        case "LIB": return LIB;
+        case "OBJ": return OBJ;
         case "RELEASE": return RELEASE;
+        case "DLLR": return DLLR;
+        case "LIBR": return LIBR;
+        case "OBJR": return OBJR;
         default: return none;
     }
 }
@@ -223,6 +248,24 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
                 options.build = strToBuild(right);
                 if (options.build == Build.none) {
                     echof("Build type `%s` is not valid.", right);
+                    return 1;
+                }
+                break;
+            case t:
+                if (options.ldc2Target) {
+                    echo("LDC target already has a value.");
+                    return 1;
+                }
+                options.ldc2Target = right;
+                break;
+            case x:
+                if (options.xAndBetterC) {
+                    echo("X already has a value.");
+                    return 1;
+                }
+                options.xAndBetterC = strToBoolean(right);
+                if (options.xAndBetterC == Boolean.none) {
+                    echof("Value `%s` for X is not valid.", right);
                     return 1;
                 }
                 break;
@@ -345,9 +388,9 @@ int main(string[] args) {
     foreach (name; options.versionNames) {
         if (0) {
         } else if (options.compiler == Compiler.ldc2) {
-            dc ~= "--d-version=" ~ name;
+            dc ~= "-d-version=" ~ name;
         } else if (options.compiler == Compiler.gdc) {
-            dc ~= "--version=" ~ name;
+            dc ~= "-fversion=" ~ name;
         } else if (options.compiler == Compiler.dmd) {
             dc ~= "-version=" ~ name;
         }
@@ -362,14 +405,66 @@ int main(string[] args) {
             if (!dc[$ - 1].endsWith(".exe")) dc[$ - 1] ~= ".exe";
         }
     }
-    if (options.build == Build.RELEASE) {
-        if (0) {
-        } else if (options.compiler == Compiler.ldc2) {
-            dc ~= "--release";
-        } else if (options.compiler == Compiler.dmd) {
-            dc ~= "-release";
-        } else if (options.compiler == Compiler.gdc) {
-            dc ~= "-O2";
+    if (options.build == Build.DLL || options.build == Build.DLLR) {
+        version (Windows) {
+            if (!dc[$ - 1].endsWith(".dll")) dc[$ - 1] ~= ".dll";
+        } else version (OSX) {
+            if (!dc[$ - 1].endsWith(".dylib")) dc[$ - 1] ~= ".dylib";
+        } else {
+            if (!dc[$ - 1].endsWith(".so")) dc[$ - 1] ~= ".so";
+        }
+    }
+    if (options.build == Build.LIB || options.build == Build.LIBR) {
+        version (Windows) {
+            if (!dc[$ - 1].endsWith(".lib")) dc[$ - 1] ~= ".lib";
+        } else {
+            if (!dc[$ - 1].endsWith(".a")) dc[$ - 1] ~= ".a";
+        }
+    }
+    if (options.build == Build.OBJ || options.build == Build.OBJR) {
+        version (Windows) {
+            if (!dc[$ - 1].endsWith(".obj")) dc[$ - 1] ~= ".obj";
+        } else {
+            if (!dc[$ - 1].endsWith(".o")) dc[$ - 1] ~= ".o";
+        }
+    }
+    if (options.build >= Build.RELEASE) {
+        with (Compiler) final switch (options.compiler) {
+            case none: break;
+            case dmd : dc ~= "-release"; break;
+            case ldc2: dc ~= "--release"; break;
+            case gdc : dc ~= "-O2"; break;
+        }
+    }
+    with (Build) switch (options.build) {
+        case DLL:
+            with (Compiler) final switch (options.compiler) {
+                case none: break;
+                case dmd : dc ~= "-shared"; break;
+                case ldc2: dc ~= "--shared"; break;
+                case gdc : dc ~= "-shared"; dc ~= "-fPIC"; break;
+            }
+            break;
+        case LIB:
+            with (Compiler) final switch (options.compiler) {
+                case none: break;
+                case dmd : dc ~= "-lib"; break;
+                case ldc2: dc ~= "--lib"; dc ~= "-oq"; break;
+                case gdc : dc ~= "-c"; break; // NOTE: No idea, just copied what DUB does.
+            }
+            break;
+        case OBJ:
+            dc ~= "-c";
+            break;
+        default:
+            break;
+    }
+    if (options.xAndBetterC == Boolean.TRUE) {
+        with (Compiler) final switch (options.compiler) {
+            case none: break;
+            case dmd : dc ~= "-betterC"; dc ~= "-i"; break;
+            case ldc2: dc ~= "--betterC"; dc ~= "-i"; break;
+            case gdc : dc ~= "-nophoboslib"; break;
         }
     }
     if (options.quiet == Boolean.TRUE) {
@@ -381,15 +476,21 @@ int main(string[] args) {
         echo("Something failed.");
         return 1;
     }
-    version(Windows) {
-        foreach (file; find(".", ".obj")) rm(file);
-    } else {
-        foreach (file; find(".", ".o")) rm(file);
+    if (options.build != Build.OBJ && options.build != Build.OBJR) {
+        version(Windows) {
+            foreach (file; find(".", ".obj")) rm(file);
+        } else {
+            foreach (file; find(".", ".o")) rm(file);
+        }
     }
     switch (mode) {
         case "build", "b":
             return 0;
         case "run", "r":
+            if (options.build != Build.DEBUG && options.build != Build.RELEASE) {
+                echo("Can't run a library");
+                return 1;
+            }
             IStr[] dr = [];
             if (options.outputPath[0] == '.' || options.outputPath[0] == pathSep) {
                 dr ~= options.outputPath;
