@@ -8,8 +8,6 @@
 // TODO: Make rpath work on OSX.
 // TODO: Add more build types. Ideas: test, lib, dll, o, ...
 
-enum argumentsFile = ".closed";
-
 enum usageInfo = `
 Usage:
  closed <mode> <source> [arguments...]
@@ -26,6 +24,7 @@ Arguments:
  -I=<source folder>
  -J=<assets folder>
  -L=<linker flags>
+ -a=<arguments file>
  -o=<output file>
  -c=<dmd|ldc2|gdc>
  -b=<DEBUG|RELEASE>
@@ -36,6 +35,7 @@ enum Argument : ubyte {
     I,
     J,
     L,
+    a,
     o,
     c,
     b,
@@ -59,6 +59,7 @@ struct CompilerOptions {
     IStr[] iDirs;
     IStr[] jDirs;
     IStr[] lFlags;
+    IStr argumentsPath;
     IStr outputPath;
     Compiler compiler;
     Build build;
@@ -71,6 +72,7 @@ Argument strToArgument(IStr value) {
         case "I": return I;
         case "J": return J;
         case "L": return L;
+        case "a": return a;
         case "o": return o;
         case "c": return c;
         case "b": return b;
@@ -104,36 +106,7 @@ IStr compilerToStr(Compiler value) {
     }
 }
 
-int main(string[] args) {
-    if (args.length <= 2) {
-        echo(usageInfo);
-        echo(modeInfo);
-        echo(argumentsInfo);
-        return 1;
-    }
-    if (!args[2].isD) {
-        echof("Source `%s` is not a folder.", args[2]);
-        return 1;
-    }
-
-    IStr mode = args[1];
-    IStr source = args[2];
-    IStr[] arguments = cast(IStr[]) args[3 .. $]; // No one cares.
-    auto options = CompilerOptions();
-
-    // Build the compiler options.
-    if (argumentsFile.isF) {
-        auto content = cat(argumentsFile);
-        auto lineStart = 0;
-        foreach (i, c; content) {
-            if (c != '\n') continue;
-            auto line = content[lineStart .. i].trim();
-            if (line.length) arguments ~= line;
-            lineStart = cast(int) (i + 1);
-        }
-    }
-    options.dFiles ~= find(source, ".d", true);
-    options.jDirs ~= source;
+int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
     foreach (arg; arguments) {
         if (arg.length <= 2 || arg.findStart("=") == -1) {
             echof("Argument `%s` is not valid.", arg);
@@ -167,6 +140,13 @@ int main(string[] args) {
             case L:
                 options.lFlags ~= right;
                 break;
+            case a:
+                if (options.argumentsPath.length) {
+                    echo("An arguments path already exists.");
+                    return 1;
+                }
+                options.argumentsPath = right.pathFmt();
+                break;
             case o:
                 if (options.outputPath.length) {
                     echo("An output path already exists.");
@@ -197,6 +177,46 @@ int main(string[] args) {
                 }
         }
     }
+    arguments.length = 0;
+    return 0;
+}
+
+int main(string[] args) {
+    if (args.length <= 2) {
+        echo(usageInfo);
+        echo(modeInfo);
+        echo(argumentsInfo);
+        return 1;
+    }
+    if (!args[2].isD) {
+        echof("Source `%s` is not a folder.", args[2]);
+        return 1;
+    }
+
+    IStr mode = args[1];
+    IStr source = args[2];
+    IStr[] arguments = cast(IStr[]) args[3 .. $]; // No one cares.
+    auto options = CompilerOptions();
+
+    // Build the compiler options.
+    options.dFiles ~= find(source, ".d", true);
+    options.jDirs ~= source;
+    if (applyArgumentsToOptions(options, arguments)) return 1;
+    if (options.argumentsPath.length == 0) {
+        options.argumentsPath = ".closed";
+    }
+    if (options.argumentsPath.isF) {
+        auto content = cat(options.argumentsPath);
+        auto lineStart = 0;
+        foreach (i, c; content) {
+            if (c != '\n') continue;
+            auto line = content[lineStart .. i].trim();
+            if (line.length) arguments ~= line;
+            lineStart = cast(int) (i + 1);
+        }
+    }
+    if (applyArgumentsToOptions(options, arguments)) return 1;
+    // Add default compiler options if needed.
     if (options.outputPath.length == 0) {
         options.outputPath = join(".", pwd.basename);
     }
