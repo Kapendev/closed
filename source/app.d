@@ -5,11 +5,11 @@
 // It's another build system thing :)
 // Made for fun.
 
-// TODO: Make rpath work on OSX.
 // TODO: Add -q=<TRUE|FALSE> to hide cmd lines.
-// TODO: Add -r=<argument> to add run args when running.
+// TODO: Add -r=<run argument> to add run args when running.
 // TODO: Add -v=<version name>.
 // TODO: Add -s=<section name>. The config can work like an INI file where you can pick a section of arguments.
+// TODO: Make rpath work on OSX.
 // TODO: Add more build types. Ideas: lib, dll, o, ...
 // TODO: Add test mode.
 
@@ -260,6 +260,11 @@ int main(string[] args) {
     } else {
         dc ~= "-of" ~ options.outputPath;
     }
+    version (Windows) {
+        if (options.build == Build.DEBUG || options.build == Build.RELEASE) {
+            if (!dc[$ - 1].endsWith(".exe")) dc[$ - 1] ~= ".exe";
+        }
+    }
     if (options.build == Build.RELEASE) {
         if (0) {
         } else if (options.compiler == Compiler.ldc2) {
@@ -284,7 +289,11 @@ int main(string[] args) {
         echo("Something failed.");
         return 1;
     }
-    foreach (file; find(".", ".o")) rm(file);
+    version(Windows) {
+        foreach (file; find(".", ".obj")) rm(file);
+    } else {
+        foreach (file; find(".", ".o")) rm(file);
+    }
     switch (mode) {
         case "build", "b":
             return 0;

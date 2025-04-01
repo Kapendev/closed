@@ -1,6 +1,8 @@
 # Closed (WIP)
 
 A build system for D projects, inspired by the OpenD build system.
+It's designed specifically for building D files.
+For projects that require building more than just D files, Closed can be used as part of a larger build process.
 
 ## Building
 
