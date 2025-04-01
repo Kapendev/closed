@@ -1,4 +1,4 @@
-# Closed
+# Closed (WIP)
 
 A build system for D projects, inspired by the OpenD build system.
 
