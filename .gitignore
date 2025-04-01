@@ -1,0 +1,16 @@
+docs.json
+docs/
+__dummy.html
+*.so
+*.dylib
+*.dll
+*.a
+*.lib
+*-test-*
+*.exe
+*.pdb
+*.o
+*.obj
+*.lst
+lib*
+closed
