@@ -18,11 +18,25 @@ closed build .
 
 ## Additional Information
 
+* A `.closed` file in the root folder can contain arguments for Closed, one per line.
 * Paths support both forward slashes and backslashes.
 * When `-I=<path>` is passed, `-J=<path>` is automatically added by default.
-* On POS*X-like systems, rpath is set to origin by default.
-* `-L=-L.` is automatically added by default.
-* A `.closed` file in the root folder can contain arguments for Closed, one per line.
+* On POS*X-like systems, rpath is added and set to origin by default.
+* The `-L=-L.` flag is automatically added by default.
+
+## Examples
+
+* Building a Program With the LDC Compiler
+
+    ```cmd
+    closed build . -c=ldc2
+    ```
+
+* Building and Running a [Parin](https://github.com/Kapendev/parin) Game
+
+    ```cmd
+    closed run . -I=../parin/source -I=../joka/source -L=-lraylib
+    ```
 
 ## Why
 
