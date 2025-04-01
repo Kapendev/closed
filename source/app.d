@@ -6,7 +6,12 @@
 // Made for fun.
 
 // TODO: Make rpath work on OSX.
-// TODO: Add more build types. Ideas: test, lib, dll, o, ...
+// TODO: Add -q=<TRUE|FALSE> to hide cmd lines.
+// TODO: Add -r=<argument> to add run args when running.
+// TODO: Add -v=<version name>.
+// TODO: Add -s=<section name>. The config can work like an INI file where you can pick a section of arguments.
+// TODO: Add more build types. Ideas: lib, dll, o, ...
+// TODO: Add test mode.
 
 enum usageInfo = `
 Usage:
@@ -230,6 +235,10 @@ int main(string[] args) {
     options.lFlags ~= "-L.";
 
     // Build the cmd.
+    if (options.dFiles.length == 0) {
+        echo("No D source files given.");
+        return 1;
+    }
     IStr[] dc = [options.compiler.compilerToStr()];
     dc ~= options.dFiles;
     foreach (dir; options.iDirs) {
