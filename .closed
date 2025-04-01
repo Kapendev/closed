@@ -1,2 +1,11 @@
--b=RELEASE
+[default]
 -c=ldc2
+-b=RELEASE
+
+[dmd]
+-c=dmd
+-b=RELEASE
+
+[gdc]
+-c=gdc
+-b=RELEASE

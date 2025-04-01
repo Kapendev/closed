@@ -5,10 +5,7 @@
 // It's another build system thing :)
 // Made for fun.
 
-// TODO: Add -q=<TRUE|FALSE> to hide cmd lines.
-// TODO: Add -r=<run argument> to add run args when running.
-// TODO: Add -v=<version name>.
-// TODO: Add -s=<section name>. The config can work like an INI file where you can pick a section of arguments.
+// TODO: Add better error messages maybe.
 // TODO: Make rpath work on OSX.
 // TODO: Add more build types. Ideas: lib, dll, o, ...
 // TODO: Add test mode.
@@ -29,10 +26,14 @@ Arguments:
  -I=<source folder>
  -J=<assets folder>
  -L=<linker flags>
+ -V=<version name>
+ -R=<run argument>
  -a=<arguments file>
+ -s=<section name>
  -o=<output file>
  -c=<dmd|ldc2|gdc>
  -b=<DEBUG|RELEASE>
+ -q=<TRUE|FALSE>
 `[1 .. $ - 1];
 
 enum Argument : ubyte {
@@ -40,10 +41,20 @@ enum Argument : ubyte {
     I,
     J,
     L,
+    V,
+    R,
     a,
+    s,
     o,
     c,
     b,
+    q,
+}
+
+enum Boolean : ubyte {
+    none,
+    TRUE,
+    FALSE,
 }
 
 enum Build : ubyte {
@@ -64,10 +75,14 @@ struct CompilerOptions {
     IStr[] iDirs;
     IStr[] jDirs;
     IStr[] lFlags;
+    IStr[] rArguments;
+    IStr[] versionNames;
     IStr argumentsPath;
+    IStr sectionName;
     IStr outputPath;
     Compiler compiler;
     Build build;
+    Boolean quiet;
 }
 
 Argument strToArgument(IStr value) {
@@ -77,10 +92,22 @@ Argument strToArgument(IStr value) {
         case "I": return I;
         case "J": return J;
         case "L": return L;
+        case "V": return V;
+        case "R": return R;
         case "a": return a;
+        case "s": return s;
         case "o": return o;
         case "c": return c;
         case "b": return b;
+        case "q": return q;
+        default: return none;
+    }
+}
+
+Boolean strToBoolean(IStr value) {
+    with (Boolean) switch (value) {
+        case "TRUE": return TRUE;
+        case "FALSE": return FALSE;
         default: return none;
     }
 }
@@ -118,7 +145,7 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
             return 1;
         }
         auto left = arg[0 .. 2];
-        auto right = arg[3 .. $];
+        auto right = arg[3 .. $].trim();
         auto kind = strToArgument(left[1 .. $]);
         with (Argument) final switch (kind) {
             case none:
@@ -145,12 +172,30 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
             case L:
                 options.lFlags ~= right;
                 break;
+            case V:
+                options.versionNames ~= right;
+                break;
+            case R:
+                options.rArguments ~= right;
+                break;
             case a:
                 if (options.argumentsPath.length) {
                     echo("An arguments path already exists.");
                     return 1;
                 }
-                options.argumentsPath = right.pathFmt();
+                auto aFile = right.pathFmt();
+                if (!aFile.isF) {
+                    echof("Value `%s` is not a file.", right);
+                    return 1;
+                }
+                options.argumentsPath = aFile;
+                break;
+            case s:
+                if (options.sectionName.length) {
+                    echo("A section name already exists.");
+                    return 1;
+                }
+                options.sectionName = right;
                 break;
             case o:
                 if (options.outputPath.length) {
@@ -180,6 +225,18 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
                     echof("Build type `%s` is not valid.", right);
                     return 1;
                 }
+                break;
+            case q:
+                if (options.quiet) {
+                    echo("Quiet already has a value.");
+                    return 1;
+                }
+                options.quiet = strToBoolean(right);
+                if (options.quiet == Boolean.none) {
+                    echof("Value `%s` for quiet is not valid.", right);
+                    return 1;
+                }
+                break;
         }
     }
     arguments.length = 0;
@@ -211,12 +268,34 @@ int main(string[] args) {
         options.argumentsPath = ".closed";
     }
     if (options.argumentsPath.isF) {
+        auto hasSelectedSection = false;
         auto content = cat(options.argumentsPath);
         auto lineStart = 0;
         foreach (i, c; content) {
             if (c != '\n') continue;
             auto line = content[lineStart .. i].trim();
-            if (line.length) arguments ~= line;
+            if (line.length == 0) continue;
+            if (line[0] == '[') {
+                if (hasSelectedSection) {
+                    break;
+                } else {
+                    if (line[$ - 1] != ']') {
+                        echo("Invalid section in arguments file.");
+                        return 1;
+                    }
+                    auto name = line[1 .. $ - 1].trim();
+                    if (options.sectionName.length == 0 || name == options.sectionName) {
+                        hasSelectedSection = true;
+                    }
+                }
+            } else {
+                if (options.sectionName.length == 0) {
+                    hasSelectedSection = true;
+                }
+                if (hasSelectedSection) {
+                    arguments ~= line;
+                }
+            }
             lineStart = cast(int) (i + 1);
         }
     }
@@ -255,6 +334,24 @@ int main(string[] args) {
             dc ~= "-L" ~ flag;
         }
     }
+    version (linux) {
+        if (options.compiler == Compiler.gdc) {
+            dc ~= "-Xlinker";
+            dc ~= "-rpath=$ORIGIN";
+        } else {
+            dc ~= "-L-rpath=$ORIGIN";
+        }
+    }
+    foreach (name; options.versionNames) {
+        if (0) {
+        } else if (options.compiler == Compiler.ldc2) {
+            dc ~= "--d-version=" ~ name;
+        } else if (options.compiler == Compiler.gdc) {
+            dc ~= "--version=" ~ name;
+        } else if (options.compiler == Compiler.dmd) {
+            dc ~= "-version=" ~ name;
+        }
+    }
     if (options.compiler == Compiler.gdc) {
         dc ~= "-o" ~ options.outputPath;
     } else {
@@ -275,13 +372,8 @@ int main(string[] args) {
             dc ~= "-O2";
         }
     }
-    version (linux) {
-        if (options.compiler == Compiler.gdc) {
-            dc ~= "-Xlinker";
-            dc ~= "-rpath=$ORIGIN";
-        } else {
-            dc ~= "-L-rpath=$ORIGIN";
-        }
+    if (options.quiet == Boolean.TRUE) {
+        isCmdLineHidden = true;
     }
 
     // Run the cmd.
@@ -298,10 +390,14 @@ int main(string[] args) {
         case "build", "b":
             return 0;
         case "run", "r":
+            IStr[] dr = [];
             if (options.outputPath[0] == '.' || options.outputPath[0] == pathSep) {
-                return cmd(options.outputPath);
+                dr ~= options.outputPath;
+            } else {
+                dr ~= join(".", options.outputPath);
             }
-            return cmd(join(".", options.outputPath));
+            foreach (argument; options.rArguments) dr ~= argument;
+            return cmd(dr);
         default:
             echof("Mode `%s` doesn't exist.", mode);
             return 1;
