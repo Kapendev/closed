@@ -5,6 +5,9 @@
 // It's another build system thing :)
 // Made for fun.
 
+// TODO: Make rpath work on OSX.
+// TODO: Maybe add an argument that works like -C in gmake.
+
 version (Windows) {
     enum pathSep = '\\';
     enum pathSepOther = '/';
@@ -12,6 +15,8 @@ version (Windows) {
     enum pathSep = '/';
     enum pathSepOther = '\\';
 }
+
+enum argumentsFile = ".closed";
 
 enum usageInfo = `
 Usage:
@@ -119,12 +124,22 @@ int main(string[] args) {
         return 1;
     }
 
-    auto mode = args[1];
-    auto source = args[2];
-    auto arguments = args[3 .. $];
+    IStr mode = args[1];
+    IStr source = args[2];
+    IStr[] arguments = cast(IStr[]) args[3 .. $]; // No one cares.
     auto options = CompilerOptions();
 
     // Build the compiler options.
+    if (argumentsFile.isF) {
+        auto content = cat(argumentsFile);
+        auto lineStart = 0;
+        foreach (i, c; content) {
+            if (c != '\n') continue;
+            auto line = content[lineStart .. i].trim();
+            if (line.length) arguments ~= line;
+            lineStart = cast(int) (i + 1);
+        }
+    }
     options.dFiles ~= find(source, ".d", true);
     foreach (arg; arguments) {
         if (arg.length <= 2 || arg.findStart("=") == -1) {
@@ -191,7 +206,8 @@ int main(string[] args) {
         options.outputPath = join(".", pwd.basename);
     }
     if (options.compiler == Compiler.none) {
-        options.compiler = Compiler.dmd;
+        version (OSX) options.compiler = Compiler.ldc2;
+        else options.compiler = Compiler.dmd;
     }
     if (options.build == Build.none) {
         options.build = Build.DEBUG;
