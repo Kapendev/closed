@@ -6,16 +6,7 @@
 // Made for fun.
 
 // TODO: Make rpath work on OSX.
-// TODO: Add more build types.
-// TODO: Maybe add an argument that works like -C in gmake.
-
-version (Windows) {
-    enum pathSep = '\\';
-    enum pathSepOther = '/';
-} else {
-    enum pathSep = '/';
-    enum pathSepOther = '\\';
-}
+// TODO: Add more build types. Ideas: test, lib, dll, o, ...
 
 enum argumentsFile = ".closed";
 
@@ -40,7 +31,7 @@ Arguments:
  -b=<DEBUG|RELEASE>
 `[1 .. $ - 1];
 
-enum ArgumentKind : ubyte {
+enum Argument : ubyte {
     none,
     I,
     J,
@@ -73,10 +64,10 @@ struct CompilerOptions {
     Build build;
 }
 
-ArgumentKind strToArgumentKind(IStr value) {
+Argument strToArgument(IStr value) {
     // "You can do that with metaprogramming!"
     // No. Go away.
-    with (ArgumentKind) switch (value) {
+    with (Argument) switch (value) {
         case "I": return I;
         case "J": return J;
         case "L": return L;
@@ -150,26 +141,28 @@ int main(string[] args) {
         }
         auto left = arg[0 .. 2];
         auto right = arg[3 .. $];
-        auto kind = strToArgumentKind(left[1 .. $]);
-        with (ArgumentKind) final switch (kind) {
+        auto kind = strToArgument(left[1 .. $]);
+        with (Argument) final switch (kind) {
             case none:
                 echof("Argument `%s` is not valid.", arg);
                 return 1;
             case I:
-                if (!right.isD) {
+                auto iDir = right.pathFmt();
+                if (!iDir.isD) {
                     echof("Value `%s` is not a folder.", right);
                     return 1;
                 }
-                options.iDirs ~= right;
-                options.jDirs ~= right;
-                options.dFiles ~= find(right, ".d", true);
+                options.iDirs ~= iDir;
+                options.jDirs ~= iDir;
+                options.dFiles ~= find(iDir, ".d", true);
                 break;
             case J:
-                if (!right.isD) {
+                auto jDir = right.pathFmt();
+                if (!jDir.isD) {
                     echof("Value `%s` is not a folder.", right);
                     return 1;
                 }
-                options.jDirs ~= right;
+                options.jDirs ~= jDir;
                 break;
             case L:
                 options.lFlags ~= right;
@@ -179,7 +172,7 @@ int main(string[] args) {
                     echo("An output path already exists.");
                     return 1;
                 }
-                options.outputPath = right;
+                options.outputPath = right.pathFmt();
                 break;
             case c:
                 if (options.compiler) {
@@ -295,6 +288,18 @@ enum Level : ubyte {
     error,
 }
 
+version (Windows) {
+    enum pathSep = '\\';
+    enum pathSepStr = "\\";
+    enum pathSepOther = '/';
+    enum pathSepOtherStr = "/";
+} else {
+    enum pathSep = '/';
+    enum pathSepStr = "/";
+    enum pathSepOther = '\\';
+    enum pathSepOtherStr = "\\";
+}
+
 bool isX(IStr path) {
     import std.file;
     return path.exists;
@@ -390,13 +395,35 @@ IStr[] find(IStr path, IStr ext, bool isRecursive = false) {
 }
 
 IStr basename(IStr path) {
-    import std.path;
-    return baseName(path);
+    auto end = findEnd(path, pathSepStr);
+    if (end == -1) return ".";
+    else return path[end + 1 .. $];
 }
 
-IStr realpath(IStr path) {
-    import std.path;
-    return absolutePath(cast(string) path);
+IStr join(IStr[] args...) {
+    if (args.length == 0) return ".";
+    Str result = [];
+    auto length = 0;
+    foreach (i, arg; args) {
+        result ~= arg;
+        if (i != args.length - 1) {
+            result ~= pathSep;
+        }
+    }
+    return result;
+}
+
+IStr pathFmt(IStr path) {
+    if (path.length == 0) return ".";
+    Str result = [];
+    foreach (i, c; path) {
+        if (c == pathSepOther) {
+            result ~= pathSep;
+        } else {
+            result ~= c;
+        }
+    }
+    return result;
 }
 
 IStr read() {
@@ -418,11 +445,6 @@ IStr readYesNo(IStr text, IStr firstValue = "?") {
 IStr fmt(A...)(IStr text, A args...) {
     import std.format;
     return format(text, args);
-}
-
-IStr join(IStr[] args...) {
-    import std.path;
-    return buildPath(args);
 }
 
 bool isYes(IStr arg) {

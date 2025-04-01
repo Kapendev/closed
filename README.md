@@ -18,6 +18,7 @@ closed build .
 
 ## Additional Information
 
+* Paths support both forward slashes and backslashes.
 * When `-I=<path>` is passed, `-J=<path>` is automatically added by default.
 * On POS*X-like systems, rpath is set to origin by default.
 * `-L=-L.` is automatically added by default.
