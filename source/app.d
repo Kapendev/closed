@@ -6,6 +6,7 @@
 // Made for fun.
 
 // TODO: Make rpath work on OSX.
+// TODO: Add more build types.
 // TODO: Maybe add an argument that works like -C in gmake.
 
 version (Windows) {
@@ -141,6 +142,7 @@ int main(string[] args) {
         }
     }
     options.dFiles ~= find(source, ".d", true);
+    options.jDirs ~= source;
     foreach (arg; arguments) {
         if (arg.length <= 2 || arg.findStart("=") == -1) {
             echof("Argument `%s` is not valid.", arg);
@@ -242,6 +244,8 @@ int main(string[] args) {
             dc ~= "--release";
         } else if (options.compiler == Compiler.dmd) {
             dc ~= "-release";
+        } else if (options.compiler == Compiler.gdc) {
+            dc ~= "-O2";
         }
     }
     version (linux) {
