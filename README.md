@@ -25,6 +25,7 @@ closed build .
 * When `-I=<path>` is passed, `-J=<path>` is automatically added by default.
 * On POS*X-like systems, rpath is added and set to origin by default.
 * The `-L=-L.` flag is automatically added by default.
+* Use `-v=<TRUE|FALSE>` to print the commands being run by Closed.
 
 ## Examples
 
