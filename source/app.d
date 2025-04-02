@@ -35,7 +35,7 @@ Arguments:
  -c=<dmd|ldc2|gdc>
  -b=<TEST|DEBUG|DLL|LIB|OBJ|RELEASE|DLLR|LIBR|OBJR>
  -i=<TRUE|FALSE>
- -q=<TRUE|FALSE>
+ -v=<TRUE|FALSE>
 `[1 .. $ - 1];
 
 enum Argument : ubyte {
@@ -52,7 +52,7 @@ enum Argument : ubyte {
     c,
     b,
     i,
-    q,
+    v,
 }
 
 enum Boolean : ubyte {
@@ -94,7 +94,7 @@ struct CompilerOptions {
     IStr outputPath;
     Compiler compiler;
     Build build;
-    Boolean quiet;
+    Boolean verbose;
     Boolean include;
 }
 
@@ -217,14 +217,14 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
                     return 1;
                 }
                 break;
-            case q:
-                if (options.quiet) {
-                    echof("`%s`: Quiet already has a value.", arg);
+            case v:
+                if (options.verbose) {
+                    echof("`%s`: Verbose already has a value.", arg);
                     return 1;
                 }
-                options.quiet = toEnum!Boolean(right);
-                if (options.quiet == Boolean.none) {
-                    echof("`%s`: Value `%s` for quiet is invalid.", arg, right);
+                options.verbose = toEnum!Boolean(right);
+                if (options.verbose == Boolean.none) {
+                    echof("`%s`: Value `%s` for verbose is invalid.", arg, right);
                     return 1;
                 }
                 break;
@@ -283,6 +283,7 @@ int main(string[] args) {
         return 1;
     }
 
+    isCmdLineHidden = true;
     IStr mode = args[1];
     IStr source = args[2];
     IStr[] arguments = cast(IStr[]) args[3 .. $]; // No one cares.
@@ -430,8 +431,8 @@ int main(string[] args) {
         default:
             break;
     }
-    if (options.quiet == Boolean.TRUE) {
-        isCmdLineHidden = true;
+    if (options.verbose == Boolean.TRUE) {
+        isCmdLineHidden = false;
     }
 
     // Run the cmd.
