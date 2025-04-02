@@ -2,13 +2,8 @@
 # The first section is the default section.
 
 [default]
+# Just use the defaults.
+
+[release]
 -c=ldc2
--b=RELEASE
-
-[dmd]
--c=dmd
--b=RELEASE
-
-[gdc]
--c=gdc
 -b=RELEASE
