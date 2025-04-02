@@ -8,10 +8,7 @@
 // TODO: Check GDC lib output one day.
 // TODO: Check GDC betterC output one day.
 // TODO: Make rpath work on OSX one day.
-// TODO: Turn the version stuff into a variable maybe.
-// TODO: Add better error messages maybe.
-// TODO: Clean maybe the dc part.
-// TODO: Work on test build. Was about to add it to dc?
+// TODO: Turn OS stuff into a variable maybe.
 
 enum usageInfo = `
 Usage:
@@ -92,7 +89,7 @@ struct CompilerOptions {
     IStr[] dFlags;
     IStr[] rArguments;
     IStr[] versionNames;
-    IStr argumentsPath;
+    IStr argumentsFile;
     IStr sectionName;
     IStr outputPath;
     Compiler compiler;
@@ -122,35 +119,33 @@ T toEnum(T)(IStr str) {
 int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
     foreach (arg; arguments) {
         if (arg.length <= 2 || arg.findStart("=") == -1) {
-            echof("Argument `%s` is not valid.", arg);
+            echof("Argument `%s` is invalid.", arg);
             return 1;
         }
         auto left = arg[0 .. 2];
-        auto right = arg[3 .. $].trim();
+        auto right = arg[3 .. $].trim().pathFmt();
         auto kind = toEnum!Argument(left[1 .. $]);
         with (Argument) final switch (kind) {
             case none:
-                echof("Argument `%s` is not valid.", arg);
+                echof("`%s`: Not a valid argument.", arg);
                 return 1;
             case I:
-                auto iDir = right.pathFmt();
-                if (!iDir.isD) {
-                    echof("Value `%s` is not a folder.", right);
+                if (!right.isD) {
+                    echof("`%s`: Value is not a folder.", arg, right);
                     return 1;
                 }
-                options.iDirs ~= iDir;
-                options.jDirs ~= iDir;
+                options.iDirs ~= right;
+                options.jDirs ~= right;
                 if (options.include != Boolean.FALSE) {
-                    options.dFiles ~= find(iDir, ".d", true);
+                    options.dFiles ~= find(right, ".d", true);
                 }
                 break;
             case J:
-                auto jDir = right.pathFmt();
-                if (!jDir.isD) {
-                    echof("Value `%s` is not a folder.", right);
+                if (!right.isD) {
+                    echof("`%s`: Value is not a folder.", arg, right);
                     return 1;
                 }
-                options.jDirs ~= jDir;
+                options.jDirs ~= right;
                 break;
             case L:
                 options.lFlags ~= right;
@@ -165,78 +160,114 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
                 options.rArguments ~= right;
                 break;
             case a:
-                if (options.argumentsPath.length) {
-                    echo("An arguments path already exists.");
+                if (options.argumentsFile.length) {
+                    echof("`%s`: An arguments file already exists.", arg);
                     return 1;
                 }
-                auto aFile = right.pathFmt();
-                if (!aFile.isF) {
-                    echof("Value `%s` is not a file.", right);
+                if (!right.isF) {
+                    echof("`%s`: Value is not a file.", arg, right);
                     return 1;
                 }
-                options.argumentsPath = aFile;
+                options.argumentsFile = right;
                 break;
             case s:
                 if (options.sectionName.length) {
-                    echo("A section name already exists.");
+                    echof("`%s`: A section name already exists.", arg);
                     return 1;
                 }
                 options.sectionName = right;
                 break;
             case o:
                 if (options.outputPath.length) {
-                    echo("An output path already exists.");
+                    echof("`%s`: An output path already exists.", arg);
                     return 1;
                 }
-                options.outputPath = right.pathFmt();
+                options.outputPath = right;
                 break;
             case c:
                 if (options.compiler) {
-                    echo("A compiler already exists.");
+                    echof("`%s`: A compiler already exists.", arg);
                     return 1;
                 }
                 options.compiler = toEnum!Compiler(right);
                 if (options.compiler == Compiler.none) {
-                    echof("Compiler `%s` is not valid.", right);
+                    echof("`%s`: Compiler `%s` is invalid.", arg, right);
                     return 1;
                 }
                 break;
             case b:
                 if (options.build) {
-                    echo("A build type already exists.");
+                    echof("`%s`: A build type already exists.", arg);
                     return 1;
                 }
                 options.build = toEnum!Build(right);
                 if (options.build == Build.none) {
-                    echof("Build type `%s` is not valid.", right);
+                    echof("`%s`: Build type `%s` is invalid.", arg, right);
                     return 1;
                 }
                 break;
             case i:
                 if (options.include) {
-                    echo("Include already has a value.");
+                    echof("`%s`: Include already has a value.", arg);
                     return 1;
                 }
                 options.include = toEnum!Boolean(right);
                 if (options.include == Boolean.none) {
-                    echof("Value `%s` for include is not valid.", right);
+                    echof("`%s`: Value `%s` for include is invalid.", arg, right);
                     return 1;
                 }
                 break;
             case q:
                 if (options.quiet) {
-                    echo("Quiet already has a value.");
+                    echof("`%s`: Quiet already has a value.", arg);
                     return 1;
                 }
                 options.quiet = toEnum!Boolean(right);
                 if (options.quiet == Boolean.none) {
-                    echof("Value `%s` for quiet is not valid.", right);
+                    echof("`%s`: Value `%s` for quiet is invalid.", arg, right);
                     return 1;
                 }
                 break;
         }
     }
     arguments.length = 0;
+    return 0;
+}
+
+int parseArgumentsFile(ref CompilerOptions options, ref IStr[] arguments) {
+    if (!options.argumentsFile.isF) return 0;
+    auto hasSelectedSection = false;
+    auto content = cat(options.argumentsFile);
+    auto lineStart = 0;
+    auto lineNumber = 0;
+    foreach (i, c; content) {
+        if (c != '\n') continue;
+        auto line = content[lineStart .. i].trim();
+        lineNumber += 1;
+        if (line.length == 0) continue;
+        if (line[0] == '[') {
+            if (hasSelectedSection) {
+                break;
+            } else {
+                if (line[$ - 1] != ']') {
+                    echof("%s:%s: Invalid section.", options.argumentsFile, lineNumber);
+                    return 1;
+                }
+                auto name = line[1 .. $ - 1].trim();
+                if (options.sectionName.length == 0 || name == options.sectionName) {
+                    hasSelectedSection = true;
+                }
+            }
+        } else {
+            if (options.sectionName.length == 0) {
+                hasSelectedSection = true;
+            }
+            if (hasSelectedSection) {
+                arguments ~= line;
+            }
+        }
+        lineStart = cast(int) (i + 1);
+    }
     return 0;
 }
 
@@ -262,42 +293,8 @@ int main(string[] args) {
     options.iDirs ~= source;
     options.jDirs ~= source;
     if (applyArgumentsToOptions(options, arguments)) return 1;
-    if (options.argumentsPath.length == 0) {
-        options.argumentsPath = ".closed";
-    }
-    // Parse the arguments file.
-    if (options.argumentsPath.isF) {
-        auto hasSelectedSection = false;
-        auto content = cat(options.argumentsPath);
-        auto lineStart = 0;
-        foreach (i, c; content) {
-            if (c != '\n') continue;
-            auto line = content[lineStart .. i].trim();
-            if (line.length == 0) continue;
-            if (line[0] == '[') {
-                if (hasSelectedSection) {
-                    break;
-                } else {
-                    if (line[$ - 1] != ']') {
-                        echo("Invalid section in arguments file.");
-                        return 1;
-                    }
-                    auto name = line[1 .. $ - 1].trim();
-                    if (options.sectionName.length == 0 || name == options.sectionName) {
-                        hasSelectedSection = true;
-                    }
-                }
-            } else {
-                if (options.sectionName.length == 0) {
-                    hasSelectedSection = true;
-                }
-                if (hasSelectedSection) {
-                    arguments ~= line;
-                }
-            }
-            lineStart = cast(int) (i + 1);
-        }
-    }
+    if (options.argumentsFile.length == 0) options.argumentsFile = ".closed";
+    if (parseArgumentsFile(options, arguments)) return 1;
     if (applyArgumentsToOptions(options, arguments)) return 1;
     // Add default compiler options if needed.
     if (options.outputPath.length == 0) {
@@ -325,6 +322,9 @@ int main(string[] args) {
     foreach (dir; options.jDirs) {
         dc ~= "-J" ~ dir;
     }
+    foreach (flag; options.dFlags) {
+        dc ~= flag;
+    }
     foreach (flag; options.lFlags) {
         if (options.compiler == Compiler.gdc) {
             dc ~= "-Xlinker";
@@ -340,9 +340,6 @@ int main(string[] args) {
         } else {
             dc ~= "-L-rpath=$ORIGIN";
         }
-    }
-    foreach (flag; options.dFlags) {
-        dc ~= flag;
     }
     foreach (name; options.versionNames) {
         if (0) {
@@ -362,6 +359,13 @@ int main(string[] args) {
     version (Windows) {
         if (options.build == Build.DEBUG || options.build == Build.RELEASE) {
             if (!dc[$ - 1].endsWith(".exe")) dc[$ - 1] ~= ".exe";
+        }
+    }
+    if (options.build == Build.TEST) {
+        version (Windows) {
+            if (!dc[$ - 1].endsWith("-test.exe")) dc[$ - 1] ~= "-test.exe";
+        } else {
+            if (!dc[$ - 1].endsWith("-test")) dc[$ - 1] ~= "-test";
         }
     }
     if (options.build == Build.DLL || options.build == Build.DLLR) {
@@ -396,6 +400,14 @@ int main(string[] args) {
         }
     }
     with (Build) switch (options.build) {
+        case TEST:
+            with (Compiler) final switch (options.compiler) {
+                case none: break;
+                case dmd : dc ~= "-unittest"; dc ~= "-main"; break;
+                case ldc2 : dc ~= "--unittest"; dc ~= "--main"; break;
+                case gdc : dc ~= "-funittest"; dc ~= "-fmain"; break;
+            }
+            break;
         case DLL:
             with (Compiler) final switch (options.compiler) {
                 case none: break;
@@ -424,7 +436,7 @@ int main(string[] args) {
 
     // Run the cmd.
     if (cmd(dc)) {
-        echo("Something failed.");
+        echo("Compilation failed.");
         return 1;
     }
     if (options.build != Build.OBJ && options.build != Build.OBJR) {
@@ -438,8 +450,8 @@ int main(string[] args) {
         case "build", "b":
             return 0;
         case "run", "r":
-            if (options.build != Build.DEBUG && options.build != Build.RELEASE) {
-                echo("Can't run a library");
+            if (options.build != Build.TEST && options.build != Build.DEBUG && options.build != Build.RELEASE) {
+                echo("Cannot run library.");
                 return 1;
             }
             IStr[] dr = [];
