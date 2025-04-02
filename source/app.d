@@ -2,16 +2,16 @@
 
 // [Noby Script]
 
-// It's another build system thing :)
-// Made for fun.
+// I will ignore stuff that I don't use for now.
+// It's FOSS, fix it yourself or something.
 
-// TODO: Add better error messages maybe.
 // TODO: Check GDC lib output one day.
 // TODO: Check GDC betterC output one day.
+// TODO: Make rpath work on OSX one day.
+// TODO: Turn the version stuff into a variable maybe.
+// TODO: Add better error messages maybe.
 // TODO: Clean maybe the dc part.
-// TODO: Make rpath work on OSX.
-// TODO: Work on test build.
-// TODO: Add dc part for the ldc2target.
+// TODO: Work on test build. Was about to add it to dc?
 
 enum usageInfo = `
 Usage:
@@ -29,6 +29,7 @@ Arguments:
  -I=<source folder>
  -J=<assets folder>
  -L=<linker flag>
+ -D=<d flag>
  -V=<version name>
  -R=<run argument>
  -a=<arguments file>
@@ -36,8 +37,7 @@ Arguments:
  -o=<output file>
  -c=<dmd|ldc2|gdc>
  -b=<TEST|DEBUG|DLL|LIB|OBJ|RELEASE|DLLR|LIBR|OBJR>
- -t=<ldc2 target>
- -x=<TRUE|FALSE>
+ -i=<TRUE|FALSE>
  -q=<TRUE|FALSE>
 `[1 .. $ - 1];
 
@@ -46,6 +46,7 @@ enum Argument : ubyte {
     I,
     J,
     L,
+    D,
     V,
     R,
     a,
@@ -53,8 +54,7 @@ enum Argument : ubyte {
     o,
     c,
     b,
-    t,
-    x,
+    i,
     q,
 }
 
@@ -89,77 +89,33 @@ struct CompilerOptions {
     IStr[] iDirs;
     IStr[] jDirs;
     IStr[] lFlags;
+    IStr[] dFlags;
     IStr[] rArguments;
     IStr[] versionNames;
     IStr argumentsPath;
     IStr sectionName;
     IStr outputPath;
-    IStr ldc2Target;
     Compiler compiler;
     Build build;
     Boolean quiet;
-    Boolean xAndBetterC;
+    Boolean include;
 }
 
-Argument strToArgument(IStr value) {
-    // "You can do that with metaprogramming!"
-    // No. Go away.
-    with (Argument) switch (value) {
-        case "I": return I;
-        case "J": return J;
-        case "L": return L;
-        case "V": return V;
-        case "R": return R;
-        case "a": return a;
-        case "s": return s;
-        case "o": return o;
-        case "c": return c;
-        case "b": return b;
-        case "t": return t;
-        case "x": return x;
-        case "q": return q;
-        default: return none;
+IStr enumToStr(T)(T value) {
+    switch (value) {
+        static foreach (m; __traits(allMembers, T)) {
+            mixin("case T.", m, ": return m;");
+        }
+        default: assert(0, "WTF!");
     }
 }
 
-Boolean strToBoolean(IStr value) {
-    with (Boolean) switch (value) {
-        case "TRUE": return TRUE;
-        case "FALSE": return FALSE;
-        default: return none;
-    }
-}
-
-Build strToBuild(IStr value) {
-    with (Build) switch (value) {
-        case "TEST": return TEST;
-        case "DEBUG": return DEBUG;
-        case "DLL": return DLL;
-        case "LIB": return LIB;
-        case "OBJ": return OBJ;
-        case "RELEASE": return RELEASE;
-        case "DLLR": return DLLR;
-        case "LIBR": return LIBR;
-        case "OBJR": return OBJR;
-        default: return none;
-    }
-}
-
-Compiler strToCompiler(IStr value) {
-    with (Compiler) switch (value) {
-        case "dmd": return dmd;
-        case "ldc2": return ldc2;
-        case "gdc": return gdc;
-        default: return none;
-    }
-}
-
-IStr compilerToStr(Compiler value) {
-    with (Compiler) switch (value) {
-        case dmd: return "dmd";
-        case ldc2: return "ldc2";
-        case gdc: return "gdc";
-        default: return "none";
+T toEnum(T)(IStr str) {
+    switch (str) {
+        static foreach (m; __traits(allMembers, T)) {
+            mixin("case m: return T.", m, ";");
+        }
+        default: return T.init;
     }
 }
 
@@ -171,7 +127,7 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
         }
         auto left = arg[0 .. 2];
         auto right = arg[3 .. $].trim();
-        auto kind = strToArgument(left[1 .. $]);
+        auto kind = toEnum!Argument(left[1 .. $]);
         with (Argument) final switch (kind) {
             case none:
                 echof("Argument `%s` is not valid.", arg);
@@ -184,7 +140,9 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
                 }
                 options.iDirs ~= iDir;
                 options.jDirs ~= iDir;
-                options.dFiles ~= find(iDir, ".d", true);
+                if (options.include != Boolean.FALSE) {
+                    options.dFiles ~= find(iDir, ".d", true);
+                }
                 break;
             case J:
                 auto jDir = right.pathFmt();
@@ -196,6 +154,9 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
                 break;
             case L:
                 options.lFlags ~= right;
+                break;
+            case D:
+                options.dFlags ~= right;
                 break;
             case V:
                 options.versionNames ~= right;
@@ -234,7 +195,7 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
                     echo("A compiler already exists.");
                     return 1;
                 }
-                options.compiler = strToCompiler(right);
+                options.compiler = toEnum!Compiler(right);
                 if (options.compiler == Compiler.none) {
                     echof("Compiler `%s` is not valid.", right);
                     return 1;
@@ -245,27 +206,20 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
                     echo("A build type already exists.");
                     return 1;
                 }
-                options.build = strToBuild(right);
+                options.build = toEnum!Build(right);
                 if (options.build == Build.none) {
                     echof("Build type `%s` is not valid.", right);
                     return 1;
                 }
                 break;
-            case t:
-                if (options.ldc2Target) {
-                    echo("LDC target already has a value.");
+            case i:
+                if (options.include) {
+                    echo("Include already has a value.");
                     return 1;
                 }
-                options.ldc2Target = right;
-                break;
-            case x:
-                if (options.xAndBetterC) {
-                    echo("X already has a value.");
-                    return 1;
-                }
-                options.xAndBetterC = strToBoolean(right);
-                if (options.xAndBetterC == Boolean.none) {
-                    echof("Value `%s` for X is not valid.", right);
+                options.include = toEnum!Boolean(right);
+                if (options.include == Boolean.none) {
+                    echof("Value `%s` for include is not valid.", right);
                     return 1;
                 }
                 break;
@@ -274,7 +228,7 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
                     echo("Quiet already has a value.");
                     return 1;
                 }
-                options.quiet = strToBoolean(right);
+                options.quiet = toEnum!Boolean(right);
                 if (options.quiet == Boolean.none) {
                     echof("Value `%s` for quiet is not valid.", right);
                     return 1;
@@ -305,11 +259,13 @@ int main(string[] args) {
 
     // Build the compiler options.
     options.dFiles ~= find(source, ".d", true);
+    options.iDirs ~= source;
     options.jDirs ~= source;
     if (applyArgumentsToOptions(options, arguments)) return 1;
     if (options.argumentsPath.length == 0) {
         options.argumentsPath = ".closed";
     }
+    // Parse the arguments file.
     if (options.argumentsPath.isF) {
         auto hasSelectedSection = false;
         auto content = cat(options.argumentsPath);
@@ -361,7 +317,7 @@ int main(string[] args) {
         echo("No D source files given.");
         return 1;
     }
-    IStr[] dc = [options.compiler.compilerToStr()];
+    IStr[] dc = [enumToStr(options.compiler)];
     dc ~= options.dFiles;
     foreach (dir; options.iDirs) {
         dc ~= "-I" ~ dir;
@@ -384,6 +340,9 @@ int main(string[] args) {
         } else {
             dc ~= "-L-rpath=$ORIGIN";
         }
+    }
+    foreach (flag; options.dFlags) {
+        dc ~= flag;
     }
     foreach (name; options.versionNames) {
         if (0) {
@@ -458,14 +417,6 @@ int main(string[] args) {
             break;
         default:
             break;
-    }
-    if (options.xAndBetterC == Boolean.TRUE) {
-        with (Compiler) final switch (options.compiler) {
-            case none: break;
-            case dmd : dc ~= "-betterC"; dc ~= "-i"; break;
-            case ldc2: dc ~= "--betterC"; dc ~= "-i"; break;
-            case gdc : dc ~= "-nophoboslib"; break;
-        }
     }
     if (options.quiet == Boolean.TRUE) {
         isCmdLineHidden = true;
