@@ -1,3 +1,6 @@
+# This is a simple config file for Closed.
+# The first section is the default section.
+
 [default]
 -c=ldc2
 -b=RELEASE

@@ -6,22 +6,18 @@
 // It's FOSS, fix it yourself or something.
 
 // TODO: Check GDC lib output one day.
-// TODO: Check GDC betterC output one day.
 // TODO: Make rpath work on OSX one day.
 // TODO: Turn OS stuff into a variable maybe.
+// TODO: The special case for source/src and the relative paths for things like -I need testing and maybe also rewriting.
+// NOTE: Like, not sure if source/src is working with -I and other stuff.
+// TODO: Might need to also clean some stuff, but ehh.
 
-enum usageInfo = `
+enum info = `
 Usage:
  closed <mode> <source> [arguments...]
-`[1 .. $ - 1];
-
-enum modeInfo = `
 Modes:
  b, build
  r, run
-`[1 .. $ - 1];
-
-enum argumentsInfo = `
 Arguments:
  -I=<source folder>
  -J=<assets folder>
@@ -91,6 +87,8 @@ struct CompilerOptions {
     IStr[] dFlags;
     IStr[] rArguments;
     IStr[] versionNames;
+    IStr sourceDir;
+    IStr sourceParentDir;
     IStr argumentsFile;
     IStr sectionName;
     IStr outputFile;
@@ -121,37 +119,50 @@ T toEnum(T)(IStr str) {
 
 int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
     foreach (arg; arguments) {
-        if (arg.length <= 2 || arg.findStart("=") == -1) {
+        if (arg.length <= 3 || arg.findStart("=") == -1) {
             echof("Argument `%s` is invalid.", arg);
             return 1;
         }
         auto left = arg[0 .. 2];
         auto right = arg[3 .. $].trim().pathFmt();
+        auto rightPath = right; // Assumes `right` is a local path.
+        auto rightL = right; // Assumes `right` is a -L argument.
+        if (options.sourceDir.endsWith("source") || options.sourceDir.endsWith("src")) {
+            rightPath = join(options.sourceParentDir, right);
+            rightL = "-L" ~ join(options.sourceParentDir, right.findStart("=") == -1 ? right[2 .. $] : right[3 .. $]);
+        } else {
+            rightPath = join(options.sourceDir, right);
+            rightL = "-L" ~ join(options.sourceDir, right.findStart("=") == -1 ? right[2 .. $] : right[3 .. $]);
+        }
         auto kind = toEnum!Argument(left[1 .. $]);
         with (Argument) final switch (kind) {
             case none:
                 echof("`%s`: Not a valid argument.", arg);
                 return 1;
             case I:
-                if (!right.isD) {
-                    echof("`%s`: Value is not a folder.", arg, right);
+                if (!rightPath.isD) {
+                    echof("`%s`: Value is not a folder.", arg, rightPath);
                     return 1;
                 }
-                options.iDirs ~= right;
-                options.jDirs ~= right;
+                options.iDirs ~= rightPath;
+                options.jDirs ~= rightPath;
                 if (options.include != Boolean.FALSE) {
-                    options.dFiles ~= find(right, ".d", true);
+                    options.dFiles ~= find(rightPath, ".d", true);
                 }
                 break;
             case J:
-                if (!right.isD) {
-                    echof("`%s`: Value is not a folder.", arg, right);
+                if (!rightPath.isD) {
+                    echof("`%s`: Value is not a folder.", arg, rightPath);
                     return 1;
                 }
-                options.jDirs ~= right;
+                options.jDirs ~= rightPath;
                 break;
             case L:
-                options.lFlags ~= right;
+                if (right.startsWith("-L")) {
+                    options.lFlags ~= rightL;
+                } else {
+                    options.lFlags ~= right;
+                }
                 break;
             case D:
                 options.dFlags ~= right;
@@ -167,11 +178,11 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
                     echof("`%s`: An arguments file already exists.", arg);
                     return 1;
                 }
-                if (!right.isF) {
-                    echof("`%s`: Value is not a file.", arg, right);
+                if (!rightPath.isF) {
+                    echof("`%s`: Value is not a file.", arg, rightPath);
                     return 1;
                 }
-                options.argumentsFile = right;
+                options.argumentsFile = rightPath;
                 break;
             case s:
                 if (options.sectionName.length) {
@@ -185,7 +196,7 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
                     echof("`%s`: An output file already exists.", arg);
                     return 1;
                 }
-                options.outputFile = right;
+                options.outputFile = rightPath;
                 break;
             case c:
                 if (options.compiler) {
@@ -258,8 +269,10 @@ int parseArgumentsFile(ref CompilerOptions options, ref IStr[] arguments) {
         if (c != '\n') continue;
         auto line = content[lineStart .. i].trim();
         lineNumber += 1;
-        if (line.length == 0) continue;
-        if (line[0] == '[') {
+        if (0) {
+        } else if (line.length == 0) {
+        } else if (line[0] == '#') {
+        } else if (line[0] == '[') {
             if (hasSelectedSection) {
                 break;
             } else {
@@ -286,34 +299,39 @@ int parseArgumentsFile(ref CompilerOptions options, ref IStr[] arguments) {
 }
 
 int main(string[] args) {
-    if (args.length <= 2) {
-        echo(usageInfo);
-        echo(modeInfo);
-        echo(argumentsInfo);
-        return 1;
-    }
-    if (!args[2].isD) {
-        echof("Source `%s` is not a folder.", args[2]);
-        return 1;
-    }
+    if (args.length <= 2) { echo(info); return 1; }
+    if (!args[2].isD) { echof("Source `%s` is not a folder.", args[2]); return 1; }
 
     isCmdLineHidden = true;
     IStr mode = args[1];
-    IStr source = args[2];
-    IStr[] arguments = cast(IStr[]) args[3 .. $]; // No one cares.
-    auto options = CompilerOptions();
+    IStr source = args[2][$ - 1] == pathSep ? args[2][0 .. $ - 1] : args[2];
+    IStr sourceParent = join(source, "..");
+    IStr[] arguments = cast(IStr[]) args[3 .. $];
 
     // Build the compiler options.
+    auto options = CompilerOptions();
+    options.sourceDir = source;
+    options.sourceParentDir = sourceParent;
     options.dFiles ~= find(source, ".d", true);
     options.iDirs ~= source;
     options.jDirs ~= source;
     if (applyArgumentsToOptions(options, arguments)) return 1;
-    if (options.argumentsFile.length == 0) options.argumentsFile = ".closed";
+    if (options.argumentsFile.length == 0) {
+        // Might be a bad idea, but ehh.
+        options.argumentsFile = join(source, ".closed");
+        if (!options.argumentsFile.isF) {
+            options.argumentsFile = join(sourceParent, ".closed");
+        }
+    }
     if (parseArgumentsFile(options, arguments)) return 1;
     if (applyArgumentsToOptions(options, arguments)) return 1;
     // Add default compiler options if needed.
     if (options.outputFile.length == 0) {
-        options.outputFile = join(".", pwd.basename);
+        if (source.endsWith("source") || source.endsWith("src")) {
+            options.outputFile = join(sourceParent, pwd.basename);
+        } else {
+            options.outputFile = join(source, pwd.basename);
+        }
     }
     if (options.compiler == Compiler.none) {
         version (OSX) options.compiler = Compiler.ldc2;
@@ -322,7 +340,6 @@ int main(string[] args) {
     if (options.build == Build.none) {
         options.build = Build.DEBUG;
     }
-    options.lFlags ~= "-L.";
     // Fix the name of the output file if needed.
     if (options.temporary == Boolean.TRUE) {
         options.outputFile ~= "-temporary";
@@ -467,8 +484,8 @@ int main(string[] args) {
                 return 1;
             }
             if (options.build != Build.OBJ && options.build != Build.OBJR) {
-                version(Windows) foreach (file; find(".", ".obj")) rm(file);
-                else foreach (file; find(".", ".o")) rm(file);
+                version(Windows) foreach (file; find(options.outputFile.dirname, ".obj")) rm(file);
+                else foreach (file; find(options.outputFile.dirname, ".o")) rm(file);
             }
             if (options.temporary == Boolean.TRUE) rm(options.outputFile);
             return 0;
@@ -478,8 +495,8 @@ int main(string[] args) {
                 return 1;
             }
             if (options.build != Build.OBJ && options.build != Build.OBJR) {
-                version(Windows) foreach (file; find(".", ".obj")) rm(file);
-                else foreach (file; find(".", ".o")) rm(file);
+                version(Windows) foreach (file; find(options.outputFile.dirname, ".obj")) rm(file);
+                else foreach (file; find(options.outputFile.dirname, ".o")) rm(file);
             }
             if (options.build != Build.TEST && options.build != Build.DEBUG && options.build != Build.RELEASE) {
                 echo("Cannot run library.");
@@ -631,6 +648,12 @@ IStr basename(IStr path) {
     auto end = findEnd(path, pathSepStr);
     if (end == -1) return ".";
     else return path[end + 1 .. $];
+}
+
+IStr dirname(IStr path) {
+    auto end = findEnd(path, pathSepStr);
+    if (end == -1) return ".";
+    else return path[0 .. end];
 }
 
 IStr join(IStr[] args...) {
