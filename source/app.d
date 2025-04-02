@@ -36,6 +36,7 @@ Arguments:
  -b=<TEST|DEBUG|DLL|LIB|OBJ|RELEASE|DLLR|LIBR|OBJR>
  -i=<TRUE|FALSE>
  -v=<TRUE|FALSE>
+ -t=<TRUE|FALSE>
 `[1 .. $ - 1];
 
 enum Argument : ubyte {
@@ -53,6 +54,7 @@ enum Argument : ubyte {
     b,
     i,
     v,
+    t,
 }
 
 enum Boolean : ubyte {
@@ -91,11 +93,12 @@ struct CompilerOptions {
     IStr[] versionNames;
     IStr argumentsFile;
     IStr sectionName;
-    IStr outputPath;
+    IStr outputFile;
     Compiler compiler;
     Build build;
-    Boolean verbose;
     Boolean include;
+    Boolean verbose;
+    Boolean temporary;
 }
 
 IStr enumToStr(T)(T value) {
@@ -178,11 +181,11 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
                 options.sectionName = right;
                 break;
             case o:
-                if (options.outputPath.length) {
-                    echof("`%s`: An output path already exists.", arg);
+                if (options.outputFile.length) {
+                    echof("`%s`: An output file already exists.", arg);
                     return 1;
                 }
-                options.outputPath = right;
+                options.outputFile = right;
                 break;
             case c:
                 if (options.compiler) {
@@ -225,6 +228,17 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
                 options.verbose = toEnum!Boolean(right);
                 if (options.verbose == Boolean.none) {
                     echof("`%s`: Value `%s` for verbose is invalid.", arg, right);
+                    return 1;
+                }
+                break;
+            case t:
+                if (options.temporary) {
+                    echof("`%s`: Temporary already has a value.", arg);
+                    return 1;
+                }
+                options.temporary = toEnum!Boolean(right);
+                if (options.temporary == Boolean.none) {
+                    echof("`%s`: Value `%s` for temporary is invalid.", arg, right);
                     return 1;
                 }
                 break;
@@ -298,8 +312,8 @@ int main(string[] args) {
     if (parseArgumentsFile(options, arguments)) return 1;
     if (applyArgumentsToOptions(options, arguments)) return 1;
     // Add default compiler options if needed.
-    if (options.outputPath.length == 0) {
-        options.outputPath = join(".", pwd.basename);
+    if (options.outputFile.length == 0) {
+        options.outputFile = join(".", pwd.basename);
     }
     if (options.compiler == Compiler.none) {
         version (OSX) options.compiler = Compiler.ldc2;
@@ -309,6 +323,51 @@ int main(string[] args) {
         options.build = Build.DEBUG;
     }
     options.lFlags ~= "-L.";
+    // Fix the name of the output file if needed.
+    if (options.temporary == Boolean.TRUE) {
+        options.outputFile ~= "-temporary";
+    }
+    version (Windows) {
+        if (options.build == Build.DEBUG || options.build == Build.RELEASE) {
+            if (!options.outputFile.endsWith(".exe")) {
+                options.outputFile ~= ".exe";
+            }
+        }
+    }
+    if (options.build == Build.TEST) {
+        version (Windows) {
+            if (!options.outputFile.endsWith("-test.exe")) {
+                options.outputFile ~= "-test.exe";
+            }
+        } else {
+            if (!options.outputFile.endsWith("-test")) {
+                options.outputFile ~= "-test";
+            }
+        }
+    }
+    if (options.build == Build.DLL || options.build == Build.DLLR) {
+        version (Windows) {
+            if (!options.outputFile.endsWith(".dll")) options.outputFile ~= ".dll";
+        } else version (OSX) {
+            if (!options.outputFile.endsWith(".dylib")) options.outputFile ~= ".dylib";
+        } else {
+            if (!options.outputFile.endsWith(".so")) options.outputFile ~= ".so";
+        }
+    }
+    if (options.build == Build.LIB || options.build == Build.LIBR) {
+        version (Windows) {
+            if (!options.outputFile.endsWith(".lib")) options.outputFile ~= ".lib";
+        } else {
+            if (!options.outputFile.endsWith(".a")) options.outputFile ~= ".a";
+        }
+    }
+    if (options.build == Build.OBJ || options.build == Build.OBJR) {
+        version (Windows) {
+            if (!options.outputFile.endsWith(".obj")) options.outputFile ~= ".obj";
+        } else {
+            if (!options.outputFile.endsWith(".o")) options.outputFile ~= ".o";
+        }
+    }
 
     // Build the cmd.
     if (options.dFiles.length == 0) {
@@ -353,44 +412,9 @@ int main(string[] args) {
         }
     }
     if (options.compiler == Compiler.gdc) {
-        dc ~= "-o" ~ options.outputPath;
+        dc ~= "-o" ~ options.outputFile;
     } else {
-        dc ~= "-of" ~ options.outputPath;
-    }
-    version (Windows) {
-        if (options.build == Build.DEBUG || options.build == Build.RELEASE) {
-            if (!dc[$ - 1].endsWith(".exe")) dc[$ - 1] ~= ".exe";
-        }
-    }
-    if (options.build == Build.TEST) {
-        version (Windows) {
-            if (!dc[$ - 1].endsWith("-test.exe")) dc[$ - 1] ~= "-test.exe";
-        } else {
-            if (!dc[$ - 1].endsWith("-test")) dc[$ - 1] ~= "-test";
-        }
-    }
-    if (options.build == Build.DLL || options.build == Build.DLLR) {
-        version (Windows) {
-            if (!dc[$ - 1].endsWith(".dll")) dc[$ - 1] ~= ".dll";
-        } else version (OSX) {
-            if (!dc[$ - 1].endsWith(".dylib")) dc[$ - 1] ~= ".dylib";
-        } else {
-            if (!dc[$ - 1].endsWith(".so")) dc[$ - 1] ~= ".so";
-        }
-    }
-    if (options.build == Build.LIB || options.build == Build.LIBR) {
-        version (Windows) {
-            if (!dc[$ - 1].endsWith(".lib")) dc[$ - 1] ~= ".lib";
-        } else {
-            if (!dc[$ - 1].endsWith(".a")) dc[$ - 1] ~= ".a";
-        }
-    }
-    if (options.build == Build.OBJ || options.build == Build.OBJR) {
-        version (Windows) {
-            if (!dc[$ - 1].endsWith(".obj")) dc[$ - 1] ~= ".obj";
-        } else {
-            if (!dc[$ - 1].endsWith(".o")) dc[$ - 1] ~= ".o";
-        }
+        dc ~= "-of" ~ options.outputFile;
     }
     if (options.build >= Build.RELEASE) {
         with (Compiler) final switch (options.compiler) {
@@ -436,35 +460,45 @@ int main(string[] args) {
     }
 
     // Run the cmd.
-    if (cmd(dc)) {
-        echo("Compilation failed.");
-        return 1;
-    }
-    if (options.build != Build.OBJ && options.build != Build.OBJR) {
-        version(Windows) {
-            foreach (file; find(".", ".obj")) rm(file);
-        } else {
-            foreach (file; find(".", ".o")) rm(file);
-        }
-    }
     switch (mode) {
         case "build", "b":
+            if (cmd(dc)) {
+                echo("Compilation failed.");
+                return 1;
+            }
+            if (options.build != Build.OBJ && options.build != Build.OBJR) {
+                version(Windows) foreach (file; find(".", ".obj")) rm(file);
+                else foreach (file; find(".", ".o")) rm(file);
+            }
+            if (options.temporary == Boolean.TRUE) rm(options.outputFile);
             return 0;
         case "run", "r":
+            if (cmd(dc)) {
+                echo("Compilation failed.");
+                return 1;
+            }
+            if (options.build != Build.OBJ && options.build != Build.OBJR) {
+                version(Windows) foreach (file; find(".", ".obj")) rm(file);
+                else foreach (file; find(".", ".o")) rm(file);
+            }
             if (options.build != Build.TEST && options.build != Build.DEBUG && options.build != Build.RELEASE) {
                 echo("Cannot run library.");
+                if (options.temporary == Boolean.TRUE) rm(options.outputFile);
                 return 1;
             }
             IStr[] dr = [];
-            if (options.outputPath[0] == '.' || options.outputPath[0] == pathSep) {
-                dr ~= options.outputPath;
+            if (options.outputFile[0] == '.' || options.outputFile[0] == pathSep) {
+                dr ~= options.outputFile;
             } else {
-                dr ~= join(".", options.outputPath);
+                dr ~= join(".", options.outputFile);
             }
             foreach (argument; options.rArguments) dr ~= argument;
-            return cmd(dr);
+            auto status = cmd(dr);
+            if (options.temporary == Boolean.TRUE) rm(options.outputFile);
+            return status;
         default:
             echof("Mode `%s` doesn't exist.", mode);
+            rm(options.outputFile);
             return 1;
     }
 }
