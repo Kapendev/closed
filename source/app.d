@@ -125,7 +125,7 @@ T toEnum(T)(IStr str) {
     }
 }
 
-int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
+int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments, bool isUsingProjectPath) {
     foreach (arg; arguments) {
         if (arg.length <= 3 || arg.findStart("=") == -1) {
             echof("Argument `%s` is invalid.", arg);
@@ -135,7 +135,7 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
         auto right = arg[3 .. $].trim().pathFmt();
         auto kind = toEnum!Argument(left[1 .. $]);
         // Assumes `right` is a local path.
-        auto rightPath = join(options.sourceParentDir, right);
+        auto rightPath = isUsingProjectPath ? join(options.sourceParentDir, right) : right;
         with (Argument) final switch (kind) {
             case none:
                 echof("`%s`: Not a valid argument.", arg);
@@ -335,7 +335,7 @@ int main(string[] args) {
 
     // Build the compiler options.
     options.dFiles ~= find(options.sourceDir, ".d", true);
-    if (applyArgumentsToOptions(options, arguments)) return 1;
+    if (applyArgumentsToOptions(options, arguments, false)) return 1;
     if (options.argumentsFile.length == 0 && options.fallback != Boolean.FALSE) {
         options.argumentsFile = join(options.sourceDir, ".closed");
         if (!options.argumentsFile.isF) {
@@ -343,7 +343,7 @@ int main(string[] args) {
         }
     }
     if (parseArgumentsFile(options, arguments)) return 1;
-    if (applyArgumentsToOptions(options, arguments)) return 1;
+    if (applyArgumentsToOptions(options, arguments, true)) return 1;
     // Add default compiler options if needed.
     if (options.outputFile.length == 0) {
         options.outputFile = join(options.sourceParentDir, pwd.basename);
