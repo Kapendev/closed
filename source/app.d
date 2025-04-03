@@ -132,9 +132,9 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments, b
             return 1;
         }
         auto left = arg[0 .. 2];
-        auto right = arg[3 .. $].trim();
+        auto right = arg[3 .. $].trim().pathFmt();
         if (right.length) {
-            right = right[$ - 1] == pathSep ? right[0 .. $ - 1].pathFmt() : right.pathFmt();
+            right = right[$ - 1] == pathSep ? right[0 .. $ - 1] : right;
         }
         auto kind = toEnum!Argument(left[1 .. $]);
         // Assumes `right` is a local path.
