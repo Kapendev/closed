@@ -10,6 +10,8 @@
 // TODO: Turn OS stuff into a variable maybe.
 // TODO: Might need to also clean some stuff, but ehh.
 
+module closed;
+
 enum info = `
 Usage:
  closed <mode> <source> [arguments...]
@@ -314,7 +316,7 @@ int parseArgumentsFile(ref CompilerOptions options, ref IStr[] arguments) {
     return 0;
 }
 
-int main(string[] args) {
+int closedMain(string[] args) {
     if (args.length <= 1) { echo(info); return 1; }
     if (args[1] == "please") { echo("So polite! But no, use build like everyone else."); return 1; }
     if (args[1] == "thanks") { echo("No, thank you!"); return 1; }
@@ -541,6 +543,13 @@ int main(string[] args) {
             auto status = cmd(dr);
             if (options.temporary == Boolean.TRUE) rm(options.outputFile);
             return status;
+    }
+}
+
+version (ClosedLibrary) {
+} else {
+    int main(string[] args) {
+        return closedMain(args);
     }
 }
 
