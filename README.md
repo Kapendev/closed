@@ -18,14 +18,6 @@ Alternatively, you can use Closed with:
 closed build .
 ```
 
-## Additional Information
-
-* A `.closed` file beside the source folder can contain arguments for Closed, one per line.
-* Paths support both forward slashes and backslashes.
-* When `-I=<path>` is passed, `-J=<path>` is automatically added by default.
-* On POS*X-like systems, rpath is added and set to origin by default.
-* Use `-v=<TRUE|FALSE>` to print the commands being run by Closed.
-
 ## Examples
 
 * Building a Program With the LDC Compiler
@@ -39,6 +31,40 @@ closed build .
     ```cmd
     closed run ../parin/packages/setup
     ```
+
+## Help Message
+
+```
+Usage:
+ closed <mode> <source> [arguments...]
+Modes:
+ build
+ run
+Arguments:
+ -I=<source folder>
+ -J=<assets folder>
+ -L=<linker flag>
+ -D=<d flag>
+ -V=<version name>
+ -R=<run argument>
+ -a=<arguments file>
+ -s=<section name>
+ -o=<output file>
+ -c=<dmd|ldc2|gdc>
+ -b=<TEST|DEBUG|DLL|LIB|OBJ|RELEASE|DLLR|LIBR|OBJR>
+ -i=<TRUE|FALSE> (include d files)
+ -v=<TRUE|FALSE> (verbose messages)
+ -t=<TRUE|FALSE> (temporary output)
+ -f=<TRUE|FALSE> (fallback config)
+```
+
+## Additional Information
+
+* A `.closed` file beside the source folder can contain arguments for Closed, one per line.
+* Paths support both forward slashes and backslashes.
+* When `-I=<path>` is passed, `-J=<path>` is automatically added by default.
+* On POS*X-like systems, rpath is added and set to origin by default.
+* Use `-v=<TRUE|FALSE>` to print the commands being run by Closed.
 
 ## Why
 
