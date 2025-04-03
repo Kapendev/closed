@@ -134,9 +134,8 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
         auto left = arg[0 .. 2];
         auto right = arg[3 .. $].trim().pathFmt();
         auto kind = toEnum!Argument(left[1 .. $]);
-        // Assumes `right` is a local path and a -L argument.
+        // Assumes `right` is a local path.
         auto rightPath = join(options.sourceParentDir, right);
-        auto rightL = "-L" ~ join(options.sourceParentDir, right.findStart("=") == -1 ? right[2 .. $] : right[3 .. $]);
         with (Argument) final switch (kind) {
             case none:
                 echof("`%s`: Not a valid argument.", arg);
@@ -161,6 +160,7 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments) {
                 break;
             case L:
                 if (right.startsWith("-L")) {
+                    auto rightL = "-L" ~ join(options.sourceParentDir, right.findStart("=") == -1 ? right[2 .. $] : right[3 .. $]);
                     options.lFlags ~= rightL;
                 } else {
                     options.lFlags ~= right;

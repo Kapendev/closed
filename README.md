@@ -60,7 +60,7 @@ Arguments:
 
 ## Additional Information
 
-* A `.closed` file beside the source folder can contain arguments for Closed, one per line.
+* A `.closed` file beside or inside the source folder can contain arguments for Closed, one per line.
 * Paths support both forward slashes and backslashes.
 * When `-I=<path>` is passed, `-J=<path>` is automatically added by default.
 * On POS*X-like systems, rpath is added and set to origin by default.
