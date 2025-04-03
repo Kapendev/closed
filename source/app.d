@@ -332,7 +332,9 @@ int main(string[] args) {
         if (0) {}
         else if (dir1.isD) options.sourceDir = dir1;
         else if (dir2.isD) options.sourceDir = dir2;
+        options.dFiles ~= find(options.sourceDir, ".d", true);
     } else if (options.sourceDir.isF && options.sourceDir.endsWith(".d")) {
+        options.dFiles ~= options.sourceDir;
         options.sourceDir = options.sourceDir.dirname;
     } else {
         echof("Source `%s` is not a valid folder or file.", args[2]);
@@ -341,7 +343,6 @@ int main(string[] args) {
     options.sourceParentDir = join(options.sourceDir, "..");
 
     // Build the compiler options.
-    options.dFiles ~= find(options.sourceDir, ".d", true);
     if (applyArgumentsToOptions(options, arguments, false)) return 1;
     if (options.argumentsFile.length == 0 && options.fallback != Boolean.FALSE) {
         options.argumentsFile = join(options.sourceDir, ".closed");
