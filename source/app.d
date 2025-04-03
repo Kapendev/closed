@@ -132,7 +132,10 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments, b
             return 1;
         }
         auto left = arg[0 .. 2];
-        auto right = arg[3 .. $].trim().pathFmt();
+        auto right = arg[3 .. $].trim();
+        if (right.length) {
+            right = right[$ - 1] == pathSep ? right[0 .. $ - 1].pathFmt() : right.pathFmt();
+        }
         auto kind = toEnum!Argument(left[1 .. $]);
         // Assumes `right` is a local path.
         auto rightPath = isUsingProjectPath ? join(options.sourceParentDir, right) : right;
@@ -316,7 +319,6 @@ int main(string[] args) {
     if (args[1] == "please") { echo("So polite! But no, use build like everyone else."); return 1; }
     if (args[1] == "thanks") { echo("No, thank you!"); return 1; }
     if (args.length <= 2) { echo(info); return 1; }
-    if (!args[2].isD) { echof("Source `%s` is not a folder.", args[2]); return 1; }
 
     isCmdLineHidden = true;
     IStr[] arguments = cast(IStr[]) args[3 .. $];
@@ -324,12 +326,17 @@ int main(string[] args) {
     auto options = CompilerOptions();
     options.mode = toEnum!Mode(args[1]);
     options.sourceDir = args[2][$ - 1] == pathSep ? args[2][0 .. $ - 1] : args[2];
-    {
+    if (options.sourceDir.isD) {
         auto dir1 = join(options.sourceDir, "source");
         auto dir2 = join(options.sourceDir, "src");
         if (0) {}
         else if (dir1.isD) options.sourceDir = dir1;
         else if (dir2.isD) options.sourceDir = dir2;
+    } else if (options.sourceDir.isF && options.sourceDir.endsWith(".d")) {
+        options.sourceDir = options.sourceDir.dirname;
+    } else {
+        echof("Source `%s` is not a valid folder or file.", args[2]);
+        return 1;
     }
     options.sourceParentDir = join(options.sourceDir, "..");
 

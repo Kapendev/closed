@@ -60,6 +60,7 @@ Arguments:
 
 ## Additional Information
 
+* Closed supports single-file libraries and executables.
 * A `.closed` file beside or inside the source folder can contain arguments for Closed, one per line.
 * Paths support both forward slashes and backslashes.
 * When `-I=<path>` is passed, `-J=<path>` is automatically added by default.
