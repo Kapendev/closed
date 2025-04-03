@@ -20,7 +20,7 @@ closed build .
 
 ## Examples
 
-* Building a Program With the LDC Compiler.
+* Building a Program With the LDC Compiler
 
     ```cmd
     closed build . -c=ldc2
