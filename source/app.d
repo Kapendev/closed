@@ -312,6 +312,9 @@ int parseArgumentsFile(ref CompilerOptions options, ref IStr[] arguments) {
 }
 
 int main(string[] args) {
+    if (args.length <= 1) { echo(info); return 1; }
+    if (args[1] == "please") { echo("So polite! But no, use build like everyone else."); return 1; }
+    if (args[1] == "thanks") { echo("No, thank you!"); return 1; }
     if (args.length <= 2) { echo(info); return 1; }
     if (!args[2].isD) { echof("Source `%s` is not a folder.", args[2]); return 1; }
 
