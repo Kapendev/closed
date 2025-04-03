@@ -20,7 +20,7 @@ closed build .
 
 ## Examples
 
-* Building a Program With the LDC Compiler
+* Building a Program With the LDC Compiler.
 
     ```cmd
     closed build . -c=ldc2
@@ -29,7 +29,13 @@ closed build .
 * Running a [Parin](https://github.com/Kapendev/parin) Script
 
     ```cmd
-    closed run ../parin/packages/setup
+    closed run parin/packages/setup
+    ```
+
+* Testing the [Joka](https://github.com/Kapendev/joka) Library
+
+    ```cmd
+    closed test joka
     ```
 
 ## Help Message
