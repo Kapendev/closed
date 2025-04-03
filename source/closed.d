@@ -9,6 +9,7 @@
 // TODO: Make rpath work on OSX one day.
 // TODO: Turn OS stuff into a variable maybe.
 // TODO: Might need to also clean some stuff, but ehh.
+// TODO: The options to cmd part needs cleaning.
 
 module closed;
 
@@ -18,6 +19,7 @@ Usage:
 Modes:
  build
  run
+ test
 Arguments:
  -I=<source folder>
  -J=<assets folder>
@@ -29,10 +31,9 @@ Arguments:
  -s=<section name>
  -o=<output file>
  -c=<dmd|ldc2|gdc>
- -b=<TEST|DEBUG|DLL|LIB|OBJ|RELEASE|DLLR|LIBR|OBJR>
+ -b=<DEBUG|DLL|LIB|OBJ|RELEASE|DLLR|LIBR|OBJR>
  -i=<TRUE|FALSE> (include d files)
  -v=<TRUE|FALSE> (verbose messages)
- -t=<TRUE|FALSE> (temporary output)
  -f=<TRUE|FALSE> (fallback config)
 `[1 .. $ - 1];
 
@@ -40,6 +41,7 @@ enum Mode : ubyte {
     none,
     build,
     run,
+    test,
 }
 
 enum Argument : ubyte {
@@ -57,7 +59,6 @@ enum Argument : ubyte {
     b,
     i,
     v,
-    t,
     f,
 }
 
@@ -69,7 +70,6 @@ enum Boolean : ubyte {
 
 enum Build : ubyte {
     none,
-    TEST,
     DEBUG,
     DLL,
     LIB,
@@ -105,8 +105,8 @@ struct CompilerOptions {
     Build build;
     Boolean include;
     Boolean verbose;
-    Boolean temporary;
     Boolean fallback;
+    bool isSingleFile;
 }
 
 IStr enumToStr(T)(T value) {
@@ -143,11 +143,11 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments, b
         auto rightPath = isUsingProjectPath ? join(options.sourceParentDir, right) : right;
         with (Argument) final switch (kind) {
             case none:
-                echof("`%s`: Not a valid argument.", arg);
+                echof("Argument `%s` is invalid.", arg);
                 return 1;
             case I:
                 if (!rightPath.isD) {
-                    echof("`%s`: Value is not a folder.", arg, rightPath);
+                    echof("`%s`: Value `%s` is not a folder.", arg, rightPath);
                     return 1;
                 }
                 options.iDirs ~= rightPath;
@@ -158,7 +158,7 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments, b
                 break;
             case J:
                 if (!rightPath.isD) {
-                    echof("`%s`: Value is not a folder.", arg, rightPath);
+                    echof("`%s`: Value `%s` is not a folder.", arg, rightPath);
                     return 1;
                 }
                 options.jDirs ~= rightPath;
@@ -186,7 +186,7 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments, b
                     return 1;
                 }
                 if (!rightPath.isF) {
-                    echof("`%s`: Value is not a file.", arg, rightPath);
+                    echof("`%s`: Value `%s` is not a file.", arg, rightPath);
                     return 1;
                 }
                 options.argumentsFile = rightPath;
@@ -246,17 +246,6 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments, b
                 options.verbose = toEnum!Boolean(right);
                 if (options.verbose == Boolean.none) {
                     echof("`%s`: Value `%s` for verbose is invalid.", arg, right);
-                    return 1;
-                }
-                break;
-            case t:
-                if (options.temporary) {
-                    echof("`%s`: Temporary already has a value.", arg);
-                    return 1;
-                }
-                options.temporary = toEnum!Boolean(right);
-                if (options.temporary == Boolean.none) {
-                    echof("`%s`: Value `%s` for temporary is invalid.", arg, right);
                     return 1;
                 }
                 break;
@@ -338,6 +327,7 @@ int closedMain(string[] args) {
     } else if (options.sourceDir.isF && options.sourceDir.endsWith(".d")) {
         options.dFiles ~= options.sourceDir;
         options.sourceDir = options.sourceDir.dirname;
+        options.isSingleFile = true;
     } else {
         echof("Source `%s` is not a valid folder or file.", args[2]);
         return 1;
@@ -356,7 +346,13 @@ int closedMain(string[] args) {
     if (applyArgumentsToOptions(options, arguments, true)) return 1;
     // Add default compiler options if needed.
     if (options.outputFile.length == 0) {
-        options.outputFile = join(options.sourceParentDir, pwd.basename);
+        if (options.isSingleFile) {
+            auto name1 = options.dFiles[0][0 .. $ - 2];
+            auto name2 = name1.basename;
+            options.outputFile = join(options.sourceDir, (name2 == ".") ? name1 : name2);
+        } else {
+            options.outputFile = join(options.sourceParentDir, pwd.basename);
+        }
     }
     if (options.compiler == Compiler.none) {
         version (OSX) options.compiler = Compiler.ldc2;
@@ -366,17 +362,10 @@ int closedMain(string[] args) {
         options.build = Build.DEBUG;
     }
     // Fix the name of the output file if needed.
-    if (options.temporary == Boolean.TRUE) {
+    if (options.mode == Mode.run || options.mode == Mode.test) {
         options.outputFile ~= "-temporary";
     }
-    version (Windows) {
-        if (options.build == Build.DEBUG || options.build == Build.RELEASE) {
-            if (!options.outputFile.endsWith(".exe")) {
-                options.outputFile ~= ".exe";
-            }
-        }
-    }
-    if (options.build == Build.TEST) {
+    if (options.mode == Mode.test) {
         version (Windows) {
             if (!options.outputFile.endsWith("-test.exe")) {
                 options.outputFile ~= "-test.exe";
@@ -386,30 +375,39 @@ int closedMain(string[] args) {
                 options.outputFile ~= "-test";
             }
         }
-    }
-    if (options.build == Build.DLL || options.build == Build.DLLR) {
+    } else {
         version (Windows) {
-            if (!options.outputFile.endsWith(".dll")) options.outputFile ~= ".dll";
-        } else version (OSX) {
-            if (!options.outputFile.endsWith(".dylib")) options.outputFile ~= ".dylib";
-        } else {
-            if (!options.outputFile.endsWith(".so")) options.outputFile ~= ".so";
+            if (options.build == Build.DEBUG || options.build == Build.RELEASE) {
+                if (!options.outputFile.endsWith(".exe")) {
+                    options.outputFile ~= ".exe";
+                }
+            }
+        }
+        if (options.build == Build.DLL || options.build == Build.DLLR) {
+            version (Windows) {
+                if (!options.outputFile.endsWith(".dll")) options.outputFile ~= ".dll";
+            } else version (OSX) {
+                if (!options.outputFile.endsWith(".dylib")) options.outputFile ~= ".dylib";
+            } else {
+                if (!options.outputFile.endsWith(".so")) options.outputFile ~= ".so";
+            }
+        }
+        if (options.build == Build.LIB || options.build == Build.LIBR) {
+            version (Windows) {
+                if (!options.outputFile.endsWith(".lib")) options.outputFile ~= ".lib";
+            } else {
+                if (!options.outputFile.endsWith(".a")) options.outputFile ~= ".a";
+            }
+        }
+        if (options.build == Build.OBJ || options.build == Build.OBJR) {
+            version (Windows) {
+                if (!options.outputFile.endsWith(".obj")) options.outputFile ~= ".obj";
+            } else {
+                if (!options.outputFile.endsWith(".o")) options.outputFile ~= ".o";
+            }
         }
     }
-    if (options.build == Build.LIB || options.build == Build.LIBR) {
-        version (Windows) {
-            if (!options.outputFile.endsWith(".lib")) options.outputFile ~= ".lib";
-        } else {
-            if (!options.outputFile.endsWith(".a")) options.outputFile ~= ".a";
-        }
-    }
-    if (options.build == Build.OBJ || options.build == Build.OBJR) {
-        version (Windows) {
-            if (!options.outputFile.endsWith(".obj")) options.outputFile ~= ".obj";
-        } else {
-            if (!options.outputFile.endsWith(".o")) options.outputFile ~= ".o";
-        }
-    }
+
 
     // Build the cmd.
     if (options.dFiles.length == 0) {
@@ -436,7 +434,7 @@ int closedMain(string[] args) {
         }
     }
     version (linux) {
-        if (options.build == Build.DEBUG || options.build == Build.RELEASE) {
+        if (options.lFlags.length && (options.build == Build.DEBUG || options.build == Build.RELEASE)) {
             if (options.compiler == Compiler.gdc) {
                 dc ~= "-Xlinker";
                 dc ~= "-rpath=$ORIGIN";
@@ -468,36 +466,37 @@ int closedMain(string[] args) {
             case gdc : dc ~= "-O2"; break;
         }
     }
-    with (Build) switch (options.build) {
-        case TEST:
-            with (Compiler) final switch (options.compiler) {
-                case none: break;
-                case dmd : dc ~= "-unittest"; dc ~= "-main"; break;
-                case ldc2 : dc ~= "--unittest"; dc ~= "--main"; break;
-                case gdc : dc ~= "-funittest"; dc ~= "-fmain"; break;
-            }
-            break;
-        case DLL:
-            with (Compiler) final switch (options.compiler) {
-                case none: break;
-                case dmd : dc ~= "-shared"; break;
-                case ldc2: dc ~= "--shared"; break;
-                case gdc : dc ~= "-shared"; dc ~= "-fPIC"; break;
-            }
-            break;
-        case LIB:
-            with (Compiler) final switch (options.compiler) {
-                case none: break;
-                case dmd : dc ~= "-lib"; break;
-                case ldc2: dc ~= "--lib"; dc ~= "-oq"; break;
-                case gdc : dc ~= "-c"; break; // NOTE: No idea, just copied what DUB does.
-            }
-            break;
-        case OBJ:
-            dc ~= "-c";
-            break;
-        default:
-            break;
+    if (options.mode == Mode.test) {
+        with (Compiler) final switch (options.compiler) {
+            case none: break;
+            case dmd : dc ~= "-unittest"; dc ~= "-main"; break;
+            case ldc2 : dc ~= "--unittest"; dc ~= "--main"; break;
+            case gdc : dc ~= "-funittest"; dc ~= "-fmain"; break;
+        }
+    } else {
+        with (Build) switch (options.build) {
+            case DLL:
+                with (Compiler) final switch (options.compiler) {
+                    case none: break;
+                    case dmd : dc ~= "-shared"; break;
+                    case ldc2: dc ~= "--shared"; break;
+                    case gdc : dc ~= "-shared"; dc ~= "-fPIC"; break;
+                }
+                break;
+            case LIB:
+                with (Compiler) final switch (options.compiler) {
+                    case none: break;
+                    case dmd : dc ~= "-lib"; break;
+                    case ldc2: dc ~= "--lib"; dc ~= "-oq"; break;
+                    case gdc : dc ~= "-c"; break; // NOTE: No idea, just copied what DUB does.
+                }
+                break;
+            case OBJ:
+                dc ~= "-c";
+                break;
+            default:
+                break;
+        }
     }
     if (options.verbose == Boolean.TRUE) {
         isCmdLineHidden = false;
@@ -517,9 +516,8 @@ int closedMain(string[] args) {
                 version(Windows) foreach (file; find(options.outputFile.dirname, ".obj")) rm(file);
                 else foreach (file; find(options.outputFile.dirname, ".o")) rm(file);
             }
-            if (options.temporary == Boolean.TRUE) rm(options.outputFile);
             return 0;
-        case run:
+        case run, test:
             if (cmd(dc)) {
                 echo("Compilation failed.");
                 return 1;
@@ -528,9 +526,9 @@ int closedMain(string[] args) {
                 version(Windows) foreach (file; find(options.outputFile.dirname, ".obj")) rm(file);
                 else foreach (file; find(options.outputFile.dirname, ".o")) rm(file);
             }
-            if (options.build != Build.TEST && options.build != Build.DEBUG && options.build != Build.RELEASE) {
+            if (options.build != Build.DEBUG && options.build != Build.RELEASE) {
                 echo("Cannot run library.");
-                if (options.temporary == Boolean.TRUE) rm(options.outputFile);
+                rm(options.outputFile);
                 return 1;
             }
             IStr[] dr = [];
@@ -541,7 +539,7 @@ int closedMain(string[] args) {
             }
             foreach (argument; options.rArguments) dr ~= argument;
             auto status = cmd(dr);
-            if (options.temporary == Boolean.TRUE) rm(options.outputFile);
+            rm(options.outputFile);
             return status;
     }
 }

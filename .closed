@@ -2,9 +2,11 @@
 # The first section is the default section.
 
 [default]
-# Just use the defaults.
+# Just print the commands.
+-v=TRUE
 
 [release]
 # Use the LDC compiler and make a release build.
+-v=TRUE
 -c=ldc2
 -b=RELEASE

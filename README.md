@@ -40,6 +40,7 @@ Usage:
 Modes:
  build
  run
+ test
 Arguments:
  -I=<source folder>
  -J=<assets folder>
@@ -51,22 +52,22 @@ Arguments:
  -s=<section name>
  -o=<output file>
  -c=<dmd|ldc2|gdc>
- -b=<TEST|DEBUG|DLL|LIB|OBJ|RELEASE|DLLR|LIBR|OBJR>
+ -b=<DEBUG|DLL|LIB|OBJ|RELEASE|DLLR|LIBR|OBJR>
  -i=<TRUE|FALSE> (include d files)
  -v=<TRUE|FALSE> (verbose messages)
- -t=<TRUE|FALSE> (temporary output)
  -f=<TRUE|FALSE> (fallback config)
 ```
 
 ## Additional Information
 
-* Closed supports single-file libraries and executables.
-* Closed can be used as a library by using the version identifier `ClosedLibrary`.
-* A `.closed` file beside or inside the source folder can contain arguments for Closed, one per line.
-* Paths support both forward slashes and backslashes.
-* When `-I=<path>` is passed, `-J=<path>` is automatically added by default.
+* Supports single-file libraries and executables.
+* Can function as a library with the version identifier `ClosedLibrary`.
+* A `.closed` file in or beside the source folder can contain arguments, one per line.
+* Paths in a `.closed` file are relative to the source folder.
+* Supports both forward slashes and backslashes in paths.
+* Passing `-I=<path>` automatically adds `-J=<path>` by default.
 * On POS*X-like systems, rpath is added and set to origin by default.
-* Use `-v=<TRUE|FALSE>` to print the commands being run by Closed.
+* Use `-v=<TRUE|FALSE>` to print the commands being run.
 
 ## Why
 
