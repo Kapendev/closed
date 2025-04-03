@@ -9,7 +9,7 @@ For projects that require building more than just D files, Closed can be used as
 Go inside the root folder and run:
 
 ```cmd
-dmd source/app.d -of=closed
+dmd source/closed.d
 ```
 
 Alternatively, you can use Closed with:
