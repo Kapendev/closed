@@ -368,15 +368,6 @@ int closedMain(string[] args) {
     }
     if (parseArgumentsFile(options, arguments)) return 1;
     if (applyArgumentsToOptions(options, arguments, true)) return 1;
-    // Check the options one last time for weird stuff.
-    if (options.dFiles.length == 0) {
-        echo("No D source files given.");
-        return 1;
-    }
-    if (options.target != Target.EXE && options.mode != Mode.build) {
-        echof("Mode `%s` for target `%s` is invalid.", options.mode, options.target);
-        return 1;
-    }
     // Add default compiler options if needed.
     if (options.outputFile.length == 0) {
         if (options.isSingleFile) {
@@ -396,6 +387,15 @@ int closedMain(string[] args) {
     }
     if (options.build == Build.none) {
         options.build = Build.DEBUG;
+    }
+    // Check the options one last time for weird stuff.
+    if (options.dFiles.length == 0) {
+        echo("No D source files given.");
+        return 1;
+    }
+    if (options.target != Target.EXE && options.mode != Mode.build) {
+        echof("Mode `%s` for target `%s` is invalid.", options.mode, options.target);
+        return 1;
     }
     // Fix the name of the output file if needed.
     if (options.mode != Mode.build) {
