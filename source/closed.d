@@ -499,6 +499,7 @@ int closedMain(string[] args) {
                 case ldc2: dc ~= "-d-debug"; break;
                 case gdc : dc ~= "-fdebug"; break;
             }
+            dc ~= "-g";
             break;
         case RELEASE:
             with (Compiler) final switch (options.compiler) {
