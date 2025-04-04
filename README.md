@@ -58,7 +58,7 @@ Arguments:
  -s=<section name>
  -o=<output file>
  -c=<dmd|ldc2|gdc>
- -t=<EXE|DLL|LIB|OBJ>
+ -t=<exe|dll|lib|obj>
  -b=<DEBUG|RELEASE>
  -i=<TRUE|FALSE> (include d files)
  -v=<TRUE|FALSE> (verbose messages)

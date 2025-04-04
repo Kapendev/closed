@@ -30,7 +30,7 @@ Arguments:
  -s=<section name>
  -o=<output file>
  -c=<dmd|ldc2|gdc>
- -t=<EXE|DLL|LIB|OBJ>
+ -t=<exe|dll|lib|obj>
  -b=<DEBUG|RELEASE>
  -i=<TRUE|FALSE> (include d files)
  -v=<TRUE|FALSE> (verbose messages)
@@ -71,10 +71,10 @@ enum Boolean : ubyte {
 
 enum Target : ubyte {
     none,
-    EXE,
-    DLL,
-    LIB,
-    OBJ,
+    exe,
+    dll,
+    lib,
+    obj,
 }
 
 enum Build : ubyte {
@@ -150,10 +150,6 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments, b
                 echof("Argument `%s` is invalid.", arg);
                 return 1;
             case I:
-                if (!rightPath.isD) {
-                    echof("`%s`: Value `%s` is not a folder.", arg, rightPath);
-                    return 1;
-                }
                 options.iDirs ~= rightPath;
                 options.jDirs ~= rightPath;
                 if (options.include != Boolean.FALSE) {
@@ -161,10 +157,6 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments, b
                 }
                 break;
             case J:
-                if (!rightPath.isD) {
-                    echof("`%s`: Value `%s` is not a folder.", arg, rightPath);
-                    return 1;
-                }
                 options.jDirs ~= rightPath;
                 break;
             case L:
@@ -176,7 +168,15 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments, b
                 }
                 break;
             case D:
-                options.dFlags ~= right;
+                if (0) {
+                } else if (right.startsWith("-I")) {
+                    auto rightI = "-I" ~ join(options.sourceParentDir, right.findStart("=") == -1 ? right[2 .. $] : right[3 .. $]);
+                    options.dFlags ~= rightI;
+                } else if (right.endsWith(".d")) {
+                    options.dFlags ~= rightPath;
+                } else {
+                    options.dFlags ~= right;
+                }
                 break;
             case V:
                 options.versionNames ~= right;
@@ -383,7 +383,7 @@ int closedMain(string[] args) {
         else options.compiler = Compiler.dmd;
     }
     if (options.target == Target.none) {
-        options.target = Target.EXE;
+        options.target = Target.exe;
     }
     if (options.build == Build.none) {
         options.build = Build.DEBUG;
@@ -393,7 +393,7 @@ int closedMain(string[] args) {
         echo("No D source files given.");
         return 1;
     }
-    if (options.target != Target.EXE && options.mode != Mode.build) {
+    if (options.target != Target.exe && options.mode != Mode.build) {
         echof("Mode `%s` for target `%s` is invalid.", options.mode, options.target);
         return 1;
     }
@@ -409,9 +409,9 @@ int closedMain(string[] args) {
         }
     }
     with (Target) final switch (options.target) {
-        case EXE, none:
+        case exe, none:
             break;
-        case DLL:
+        case dll:
             version (Windows) {
                 if (!options.outputFile.endsWith(".dll")) options.outputFile ~= ".dll";
             } else version (OSX) {
@@ -420,14 +420,14 @@ int closedMain(string[] args) {
                 if (!options.outputFile.endsWith(".so")) options.outputFile ~= ".so";
             }
             break;
-        case LIB:
+        case lib:
             version (Windows) {
                 if (!options.outputFile.endsWith(".lib")) options.outputFile ~= ".lib";
             } else {
                 if (!options.outputFile.endsWith(".a")) options.outputFile ~= ".a";
             }
             break;
-        case OBJ:
+        case obj:
             version (Windows) {
                 if (!options.outputFile.endsWith(".obj")) options.outputFile ~= ".obj";
             } else {
@@ -457,7 +457,7 @@ int closedMain(string[] args) {
         }
     }
     version (linux) {
-        if (options.lFlags.length && options.target == Target.EXE) {
+        if (options.lFlags.length && options.target == Target.exe) {
             if (options.compiler == Compiler.gdc) {
                 dc ~= "-Xlinker";
                 dc ~= "-rpath=$ORIGIN";
@@ -479,13 +479,25 @@ int closedMain(string[] args) {
     } else {
         dc ~= "-of" ~ options.outputFile;
     }
-    if (options.build == Build.RELEASE) {
-        with (Compiler) final switch (options.compiler) {
-            case none: break;
-            case dmd : dc ~= "-release"; break;
-            case ldc2: dc ~= "--release"; break;
-            case gdc : dc ~= "-O2"; break;
-        }
+    with (Build) final switch (options.build) {
+        case none:
+            break;
+        case DEBUG:
+            with (Compiler) final switch (options.compiler) {
+                case none: break;
+                case dmd : dc ~= "-debug"; break;
+                case ldc2: dc ~= "-d-debug"; break;
+                case gdc : dc ~= "-fdebug"; break;
+            }
+            break;
+        case RELEASE:
+            with (Compiler) final switch (options.compiler) {
+                case none: break;
+                case dmd : dc ~= "-release"; break;
+                case ldc2: dc ~= "--release"; break;
+                case gdc : dc ~= "-O2"; break;
+            }
+            break;
     }
     if (options.mode == Mode.test) {
         with (Compiler) final switch (options.compiler) {
@@ -496,9 +508,9 @@ int closedMain(string[] args) {
         }
     }
     with (Target) final switch (options.target) {
-        case EXE, none:
+        case exe, none:
             break;
-        case DLL:
+        case dll:
             with (Compiler) final switch (options.compiler) {
                 case none: break;
                 case dmd : dc ~= "-shared"; break;
@@ -506,7 +518,7 @@ int closedMain(string[] args) {
                 case gdc : dc ~= "-shared"; dc ~= "-fPIC"; break;
             }
             break;
-        case LIB:
+        case lib:
             with (Compiler) final switch (options.compiler) {
                 case none: break;
                 case dmd : dc ~= "-lib"; break;
@@ -514,7 +526,7 @@ int closedMain(string[] args) {
                 case gdc : dc ~= "-c"; break; // NOTE: No idea, just copied what DUB does.
             }
             break;
-        case OBJ:
+        case obj:
             dc ~= "-c";
             break;
     }
@@ -527,7 +539,7 @@ int closedMain(string[] args) {
         echo("Compilation failed.");
         return 1;
     }
-    if (options.target != Target.OBJ) {
+    if (options.target != Target.obj) {
         version(Windows) foreach (file; find(options.outputFile.dirname, ".obj")) rm(file);
         else foreach (file; find(options.outputFile.dirname, ".o")) rm(file);
     }
