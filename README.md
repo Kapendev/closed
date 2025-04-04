@@ -58,7 +58,8 @@ Arguments:
  -s=<section name>
  -o=<output file>
  -c=<dmd|ldc2|gdc>
- -b=<DEBUG|DLL|LIB|OBJ|RELEASE|DLLR|LIBR|OBJR>
+ -t=<EXE|DLL|LIB|OBJ>
+ -b=<DEBUG|RELEASE>
  -i=<TRUE|FALSE> (include d files)
  -v=<TRUE|FALSE> (verbose messages)
  -f=<TRUE|FALSE> (fallback config)
