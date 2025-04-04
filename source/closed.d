@@ -14,6 +14,7 @@ module closed;
 
 enum info = `
 Usage:
+ closed <mode> [arguments...]
  closed <mode> <source> [arguments...]
 Modes:
  build
@@ -325,13 +326,11 @@ int parseArgumentsFile(ref CompilerOptions options, ref IStr[] arguments) {
 }
 
 int closedMain(string[] args) {
-    if (args.length <= 1) { echo(info); return 1; }
+    if (args.length == 1) { echo(info); return 1; }
     if (args[1] == "please") { echo("Say it again!"); return 1; }
     if (args[1] == "thanks") { echo("Thank you!"); return 1; }
-    if (args.length <= 2) { echo(info); return 1; }
-
     isCmdLineHidden = true;
-    IStr[] arguments = cast(IStr[]) args[3 .. $];
+
     // Prepare the compiler options.
     auto options = CompilerOptions();
     options.mode = toEnum!Mode(args[1]);
@@ -339,7 +338,14 @@ int closedMain(string[] args) {
         echof("Mode `%s` doesn't exist.", args[1]);
         return 1;
     }
-    options.sourceDir = args[2].pathFmt();
+    IStr[] arguments = null;
+    if (args.length == 2 || args[2][0] == '-') {
+        options.sourceDir = ".";
+        arguments = cast(IStr[]) args[2 .. $];
+    } else {
+        options.sourceDir = args[2].pathFmt();
+        arguments = cast(IStr[]) args[3 .. $];
+    }
     options.sourceDir = options.sourceDir[$ - 1] == pathSep ? options.sourceDir[0 .. $ - 1] : options.sourceDir;
     if (options.sourceDir.isD) {
         auto dir1 = join(options.sourceDir, "source");
@@ -563,6 +569,10 @@ version (ClosedLibrary) {
     int main(string[] args) {
         return closedMain(args);
     }
+}
+
+unittest {
+    // This is here to avoid running the tool when testing.
 }
 
 // [Noby Library]

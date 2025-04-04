@@ -15,7 +15,7 @@ dmd source/closed.d
 Alternatively, you can use Closed with:
 
 ```cmd
-closed build .
+closed build
 ```
 
 ## Examples
@@ -42,6 +42,7 @@ closed build .
 
 ```
 Usage:
+ closed <mode> [arguments...]
  closed <mode> <source> [arguments...]
 Modes:
  build
