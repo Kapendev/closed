@@ -400,8 +400,12 @@ int closedMain(string[] args) {
         return 1;
     }
     if (options.target != Target.exe && options.mode != Mode.build) {
-        echof("Mode `%s` for target `%s` is invalid.", options.mode, options.target);
-        return 1;
+        if (options.mode == Mode.test) {
+            options.target = Target.exe;
+        } else {
+            echof("Mode `%s` for target `%s` is invalid.", options.mode, options.target);
+            return 1;
+        }
     }
     // Fix the name of the output file if needed.
     if (options.mode != Mode.build) {
