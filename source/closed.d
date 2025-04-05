@@ -510,9 +510,9 @@ int closedMain(string[] args) {
         case DEBUG:
             with (Compiler) final switch (options.compiler) {
                 case none: break;
-                case dmd : dc ~= "-debug"; break;
-                case ldc2: dc ~= "-d-debug"; break;
-                case gdc : dc ~= "-fdebug"; break;
+                case dmd : dc ~= "-debug"  ; dc ~= "-dw" ; break;
+                case ldc2: dc ~= "-d-debug"; dc ~= "--dw"; break;
+                case gdc : dc ~= "-fdebug" ; break;
             }
             dc ~= "-g";
             break;
