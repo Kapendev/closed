@@ -143,9 +143,22 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments, b
         if (right.length) {
             right = right[$ - 1] == pathSep ? right[0 .. $ - 1] : right;
         }
+        if (right.length == 0) {
+            echof("Argument `%s` is invalid.", arg);
+            return 1;
+        }
         auto kind = toEnum!Argument(left[1 .. $]);
         // Assumes `right` is a local path.
-        auto rightPath = isUsingProjectPath ? join(options.sourceParentDir, right) : right;
+        auto rightPath = right;
+        if (right[0] == '-' && right.length >= 2) {
+            auto equalIndex = right.findStart("=");
+            if (equalIndex == -1) {
+                rightPath = right[2 .. $];
+            } else {
+                rightPath = right[equalIndex + 1 .. $];
+            }
+        }
+        rightPath = isUsingProjectPath ? join(options.sourceParentDir, rightPath) : rightPath;
         with (Argument) final switch (kind) {
             case none:
                 echof("Argument `%s` is invalid.", arg);
@@ -162,8 +175,7 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments, b
                 break;
             case L:
                 if (right.startsWith("-L")) {
-                    auto rightL = "-L" ~ join(options.sourceParentDir, right.findStart("=") == -1 ? right[2 .. $] : right[3 .. $]);
-                    options.lFlags ~= rightL;
+                    options.lFlags ~= "-L" ~ rightPath;
                 } else {
                     options.lFlags ~= right;
                 }
@@ -171,8 +183,11 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments, b
             case D:
                 if (0) {
                 } else if (right.startsWith("-I")) {
-                    auto rightI = "-I" ~ join(options.sourceParentDir, right.findStart("=") == -1 ? right[2 .. $] : right[3 .. $]);
-                    options.dFlags ~= rightI;
+                    options.dFlags ~= "-I" ~ rightPath;
+                } else if (right.startsWith("-J")) {
+                    options.dFlags ~= "-J" ~ rightPath;
+                } else if (right.startsWith("-i")) {
+                    options.dFlags ~= "-i=" ~ rightPath;
                 } else if (right.endsWith(".d")) {
                     options.dFlags ~= rightPath;
                 } else {
