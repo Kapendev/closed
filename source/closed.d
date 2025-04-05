@@ -504,9 +504,9 @@ int closedMain(string[] args) {
         case RELEASE:
             with (Compiler) final switch (options.compiler) {
                 case none: break;
-                case dmd : dc ~= "-release"; break;
-                case ldc2: dc ~= "--release"; break;
-                case gdc : dc ~= "-O2"; break;
+                case dmd : dc ~= "-release" ; dc ~= "-inline"           ; dc ~= "-O" ; break;
+                case ldc2: dc ~= "--release"; dc ~= "-enable-inlining"  ; dc ~= "-O3"; break;
+                case gdc : dc ~= "-frelease"; dc ~= "-finline-functions"; dc ~= "-O2"; break;
             }
             break;
     }
