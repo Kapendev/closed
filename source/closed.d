@@ -32,7 +32,7 @@ Arguments:
  -o=<output file>
  -c=<dmd|ldc2|gdc>
  -t=<exe|dll|lib|obj>
- -b=<DEBUG|RELEASE>
+ -b=<DEBUG|RELEASE|SMALL>
  -i=<TRUE|FALSE> (include d files)
  -v=<TRUE|FALSE> (verbose messages)
  -f=<TRUE|FALSE> (fallback config)
@@ -82,6 +82,7 @@ enum Build : ubyte {
     none,
     DEBUG,
     RELEASE,
+    SMALL,
 }
 
 enum Compiler : ubyte {
@@ -522,6 +523,14 @@ int closedMain(string[] args) {
                 case dmd : dc ~= "-release" ; dc ~= "-inline"           ; dc ~= "-O" ; break;
                 case ldc2: dc ~= "--release"; dc ~= "-enable-inlining"  ; dc ~= "-O3"; break;
                 case gdc : dc ~= "-frelease"; dc ~= "-finline-functions"; dc ~= "-O2"; break;
+            }
+            break;
+        case SMALL:
+            with (Compiler) final switch (options.compiler) {
+                case none: break;
+                case dmd : dc ~= "-release" ; dc ~= "-O" ; break;
+                case ldc2: dc ~= "--release"; dc ~= "-Oz"; break;
+                case gdc : dc ~= "-frelease"; dc ~= "-Os"; break;
             }
             break;
     }

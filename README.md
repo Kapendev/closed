@@ -60,7 +60,7 @@ Arguments:
  -o=<output file>
  -c=<dmd|ldc2|gdc>
  -t=<exe|dll|lib|obj>
- -b=<DEBUG|RELEASE>
+ -b=<DEBUG|RELEASE|SMALL>
  -i=<TRUE|FALSE> (include d files)
  -v=<TRUE|FALSE> (verbose messages)
  -f=<TRUE|FALSE> (fallback config)
