@@ -121,22 +121,18 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments, b
             echof("Argument `%s` is invalid.", arg);
             return 1;
         }
-        auto left = arg[0 .. 2];
-        auto right = arg[3 .. $].trim().pathTrimEnd().pathFormat();
+        auto left = cast(IStr) arg[0 .. 2];
+        auto right = cast(IStr) arg[3 .. $].trim().pathTrimEnd().pathFormat().dup();
         if (right.length == 0) {
             echof("Argument `%s` is invalid.", arg);
             return 1;
         }
         auto kind = toEnum!Argument(left[1 .. $]);
-        // Assumes `right` is a local path.
-        auto rightPath = right;
-        if (right[0] == '-' && right.length >= 2) {
-            auto equalIndex = right.findStart("=");
-            if (equalIndex == -1) {
-                rightPath = right[2 .. $];
-            } else {
-                rightPath = right[equalIndex + 1 .. $];
-            }
+        // Assumes `right` is a local path and also handles flags.
+        auto rightPath = cast(IStr) right;
+        if (rightPath.length >= 2 && rightPath[0] == '-' && rightPath[1].isAlpha) {
+            rightPath = rightPath[2 .. $];
+            if (rightPath.startsWith('=')) rightPath = rightPath[1 .. $];
         }
         rightPath = isUsingProjectPath ? pathConcat(options.sourceParentDir, rightPath) : rightPath;
         with (Argument) final switch (kind) {
@@ -341,23 +337,23 @@ int closedMain(string[] args) {
         options.sourceDir = args[2].pathFormat();
         arguments = cast(IStr[]) args[3 .. $];
     }
-    options.sourceDir = options.sourceDir.pathTrimEnd();
+    options.sourceDir = options.sourceDir.pathTrimEnd().dup();
     if (options.sourceDir.isD) {
         auto dir1 = pathConcat(options.sourceDir, "source");
         auto dir2 = pathConcat(options.sourceDir, "src");
         if (0) {}
-        else if (dir1.isD) options.sourceDir = dir1;
-        else if (dir2.isD) options.sourceDir = dir2;
+        else if (dir1.isD) options.sourceDir = dir1.dup();
+        else if (dir2.isD) options.sourceDir = dir2.dup();
         options.dFiles ~= find(options.sourceDir, ".d", true);
     } else if (options.sourceDir.isF && options.sourceDir.endsWith(".d")) {
         options.dFiles ~= options.sourceDir;
-        options.sourceDir = options.sourceDir.pathDirName;
+        options.sourceDir = options.sourceDir.pathDirName.dup();
         options.isSingleFile = true;
     } else {
         echof("Source `%s` is not a valid folder or file.", args[2]);
         return 1;
     }
-    options.sourceParentDir = pathConcat(options.sourceDir, "..");
+    options.sourceParentDir = pathConcat(options.sourceDir, "..").dup();
 
     // Build the compiler options.
     if (applyArgumentsToOptions(options, arguments, false)) return 1;
@@ -367,6 +363,7 @@ int closedMain(string[] args) {
             options.argumentsFile = pathConcat(options.sourceParentDir, ".closed");
         }
     }
+    options.argumentsFile = options.argumentsFile.dup();
     if (parseArgumentsFile(options, arguments)) return 1;
     if (applyArgumentsToOptions(options, arguments, true)) return 1;
     // Add default compiler options if needed.
@@ -374,9 +371,9 @@ int closedMain(string[] args) {
         if (options.isSingleFile) {
             auto name1 = options.dFiles[0][0 .. $ - 2];
             auto name2 = name1.pathBaseName;
-            options.outputFile = pathConcat(options.sourceDir, (name2 == ".") ? name1 : name2);
+            options.outputFile = pathConcat(options.sourceDir, (name2 == ".") ? name1 : name2).dup();
         } else {
-            options.outputFile = pathConcat(options.sourceParentDir, pwd.pathBaseName);
+            options.outputFile = pathConcat(options.sourceParentDir, pwd.pathBaseName).dup();
         }
     }
     if (options.compiler == Compiler.none) {
