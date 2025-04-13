@@ -121,15 +121,15 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments, b
             echof("Argument `%s` is invalid.", arg);
             return 1;
         }
-        auto left = cast(IStr) arg[0 .. 2];
-        auto right = cast(IStr) arg[3 .. $].trim().pathTrimEnd().pathFormat().dup();
+        auto left = arg[0 .. 2];
+        auto right = arg[3 .. $].trim().pathTrimEnd().pathFormat();
         if (right.length == 0) {
             echof("Argument `%s` is invalid.", arg);
             return 1;
         }
         auto kind = toEnum!Argument(left[1 .. $]);
         // Assumes `right` is a local path and also handles flags.
-        auto rightPath = cast(IStr) right;
+        auto rightPath = right;
         if (rightPath.length >= 2 && rightPath[0] == '-' && rightPath[1].isAlpha) {
             rightPath = rightPath[2 .. $];
             if (rightPath.startsWith('=')) rightPath = rightPath[1 .. $];
@@ -316,7 +316,7 @@ int parseArgumentsFile(ref CompilerOptions options, ref IStr[] arguments) {
     return 0;
 }
 
-int closedMain(string[] args) {
+int closedMain(IStr[] args) {
     if (args.length == 1) { echo(info); return 1; }
     if (args[1] == "please") { echo("Say it again!"); return 1; }
     if (args[1] == "thanks") { echo("Thank you!"); return 1; }
@@ -325,19 +325,16 @@ int closedMain(string[] args) {
     // Prepare the compiler options.
     auto options = CompilerOptions();
     options.mode = toEnum!Mode(args[1]);
-    if (options.mode == Mode.none) {
-        echof("Mode `%s` doesn't exist.", args[1]);
-        return 1;
-    }
+    if (options.mode == Mode.none) { echof("Mode `%s` doesn't exist.", args[1]); return 1; }
     IStr[] arguments = null;
     if (args.length == 2 || args[2][0] == '-') {
         options.sourceDir = ".";
-        arguments = cast(IStr[]) args[2 .. $];
+        arguments = args[2 .. $];
     } else {
-        options.sourceDir = args[2].pathFormat();
-        arguments = cast(IStr[]) args[3 .. $];
+        options.sourceDir = args[2].pathFormat().dup();
+        arguments = args[3 .. $];
     }
-    options.sourceDir = options.sourceDir.pathTrimEnd().dup();
+    options.sourceDir = options.sourceDir.pathTrimEnd();
     if (options.sourceDir.isD) {
         auto dir1 = pathConcat(options.sourceDir, "source");
         auto dir2 = pathConcat(options.sourceDir, "src");
@@ -347,14 +344,13 @@ int closedMain(string[] args) {
         options.dFiles ~= find(options.sourceDir, ".d", true);
     } else if (options.sourceDir.isF && options.sourceDir.endsWith(".d")) {
         options.dFiles ~= options.sourceDir;
-        options.sourceDir = options.sourceDir.pathDirName.dup();
+        options.sourceDir = options.sourceDir.pathDirName;
         options.isSingleFile = true;
     } else {
         echof("Source `%s` is not a valid folder or file.", args[2]);
         return 1;
     }
     options.sourceParentDir = pathConcat(options.sourceDir, "..").dup();
-
     // Build the compiler options.
     if (applyArgumentsToOptions(options, arguments, false)) return 1;
     if (options.argumentsFile.length == 0 && options.fallback != Boolean.FALSE) {
@@ -572,7 +568,7 @@ int closedMain(string[] args) {
 version (ClosedLibrary) {
 } else {
     int main(string[] args) {
-        return closedMain(args);
+        return closedMain(cast(IStr[]) args);
     }
 }
 
