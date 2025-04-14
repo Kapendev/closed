@@ -185,21 +185,21 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments, b
                     echof("`%s`: Value `%s` is not a file.", arg, rightPath);
                     return 1;
                 }
-                options.argumentsFile = rightPath;
+                options.argumentsFile = rightPath.dup();
                 break;
             case s:
                 if (options.sectionName.length) {
                     echof("`%s`: A section name already exists.", arg);
                     return 1;
                 }
-                options.sectionName = right;
+                options.sectionName = right.dup();
                 break;
             case o:
                 if (options.outputFile.length) {
                     echof("`%s`: An output file already exists.", arg);
                     return 1;
                 }
-                options.outputFile = rightPath;
+                options.outputFile = rightPath.dup();
                 break;
             case c:
                 if (options.compiler) {
@@ -324,6 +324,12 @@ int closedMain(IStr[] args) {
 
     // Prepare the compiler options.
     auto options = CompilerOptions();
+    options.iDirs.reserve(128);
+    options.jDirs.reserve(128);
+    options.lFlags.reserve(128);
+    options.dFlags.reserve(128);
+    options.dFiles.reserve(1024);
+
     options.mode = toEnum!Mode(args[1]);
     if (options.mode == Mode.none) { echof("Mode `%s` doesn't exist.", args[1]); return 1; }
     IStr[] arguments = null;
@@ -331,7 +337,7 @@ int closedMain(IStr[] args) {
         options.sourceDir = ".";
         arguments = args[2 .. $];
     } else {
-        options.sourceDir = args[2].pathFormat().dup();
+        options.sourceDir = args[2].pathFormat();
         arguments = args[3 .. $];
     }
     options.sourceDir = options.sourceDir.pathTrimEnd();
@@ -341,10 +347,11 @@ int closedMain(IStr[] args) {
         if (0) {}
         else if (dir1.isD) options.sourceDir = dir1.dup();
         else if (dir2.isD) options.sourceDir = dir2.dup();
+        else options.sourceDir = options.sourceDir.dup();
         options.dFiles ~= find(options.sourceDir, ".d", true);
     } else if (options.sourceDir.isF && options.sourceDir.endsWith(".d")) {
         options.dFiles ~= options.sourceDir;
-        options.sourceDir = options.sourceDir.pathDirName;
+        options.sourceDir = options.sourceDir.pathDirName.dup();
         options.isSingleFile = true;
     } else {
         echof("Source `%s` is not a valid folder or file.", args[2]);
@@ -358,8 +365,8 @@ int closedMain(IStr[] args) {
         if (!options.argumentsFile.isF) {
             options.argumentsFile = pathConcat(options.sourceParentDir, ".closed");
         }
+        options.argumentsFile = options.argumentsFile.dup();
     }
-    options.argumentsFile = options.argumentsFile.dup();
     if (parseArgumentsFile(options, arguments)) return 1;
     if (applyArgumentsToOptions(options, arguments, true)) return 1;
     // Add default compiler options if needed.
