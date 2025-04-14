@@ -142,9 +142,7 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments, b
             case I:
                 options.iDirs ~= rightPath;
                 options.jDirs ~= rightPath;
-                if (options.include != Boolean.FALSE) {
-                    options.dFiles ~= find(rightPath, ".d", true);
-                }
+                if (options.include != Boolean.FALSE) options.dFiles ~= find(rightPath, ".d", true);
                 break;
             case J:
                 options.jDirs ~= rightPath;
@@ -1091,7 +1089,7 @@ IStr concatIntoBuffer(Str buffer, IStr[] args...) {
 
 /// Concatenates the strings using a static buffer and returns the result.
 IStr concat(IStr[] args...) {
-    static char[512][4] buffers = void;
+    static char[512][8] buffers = void;
     static byte bufferIndex = 0;
 
     if (args.length == 0) return ".";
@@ -1153,7 +1151,7 @@ IStr pathTrim(IStr path) {
 
 /// Formats the path to a standard form, normalizing separators.
 IStr pathFormat(IStr path) {
-    static char[512][4] buffers = void;
+    static char[512][8] buffers = void;
     static byte bufferIndex = 0;
 
     if (path.length == 0) return ".";
@@ -1172,7 +1170,7 @@ IStr pathFormat(IStr path) {
 
 /// Concatenates the paths, ensuring proper path separators between them.
 IStr pathConcat(IStr[] args...) {
-    static char[512][4] buffers = void;
+    static char[512][8] buffers = void;
     static byte bufferIndex = 0;
 
     if (args.length == 0) return ".";
