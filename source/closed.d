@@ -151,7 +151,8 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments, b
                 break;
             case L:
                 if (right.startsWith("-L")) {
-                    options.lFlags ~= "-L" ~ rightPath;
+                    options.lFlags ~= "-L";
+                    options.lFlags[$ - 1] ~= rightPath;
                 } else {
                     options.lFlags ~= right;
                 }
@@ -159,11 +160,14 @@ int applyArgumentsToOptions(ref CompilerOptions options, ref IStr[] arguments, b
             case D:
                 if (0) {
                 } else if (right.startsWith("-I")) {
-                    options.dFlags ~= "-I" ~ rightPath;
+                    options.dFlags ~= "-I";
+                    options.dFlags[$ - 1] ~= rightPath;
                 } else if (right.startsWith("-J")) {
-                    options.dFlags ~= "-J" ~ rightPath;
+                    options.dFlags ~= "-J";
+                    options.dFlags[$ - 1] ~= rightPath;
                 } else if (right.startsWith("-i")) {
-                    options.dFlags ~= "-i=" ~ rightPath;
+                    options.dFlags ~= "-i=";
+                    options.dFlags[$ - 1] ~= rightPath;
                 } else if (right.endsWith(".d")) {
                     options.dFlags ~= rightPath;
                 } else {
@@ -444,10 +448,12 @@ int closedMain(IStr[] args) {
     IStr[] dc = [enumToStr(options.compiler)];
     dc ~= options.dFiles;
     foreach (dir; options.iDirs) {
-        dc ~= "-I" ~ dir;
+        dc ~= "-I";
+        dc[$ - 1] ~= dir;
     }
     foreach (dir; options.jDirs) {
-        dc ~= "-J" ~ dir;
+        dc ~= "-J";
+        dc[$ - 1] ~= dir;
     }
     foreach (flag; options.dFlags) {
         dc ~= flag;
@@ -457,7 +463,8 @@ int closedMain(IStr[] args) {
             dc ~= "-Xlinker";
             dc ~= flag;
         } else {
-            dc ~= "-L" ~ flag;
+            dc ~= "-L";
+            dc[$ - 1] ~= flag;
         }
     }
     version (linux) {
@@ -479,9 +486,11 @@ int closedMain(IStr[] args) {
         }
     }
     if (options.compiler == Compiler.gdc) {
-        dc ~= "-o" ~ options.outputFile;
+        dc ~= "-o";
+        dc[$ - 1] ~= options.outputFile;
     } else {
-        dc ~= "-of" ~ options.outputFile;
+        dc ~= "-of";
+        dc[$ - 1] ~= options.outputFile;
     }
     with (Build) final switch (options.build) {
         case none:
