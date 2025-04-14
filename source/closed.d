@@ -340,14 +340,13 @@ int closedMain(IStr[] args) {
         options.sourceDir = args[2].pathFormat();
         arguments = args[3 .. $];
     }
-    options.sourceDir = options.sourceDir.pathTrimEnd();
+    options.sourceDir = options.sourceDir.pathTrimEnd().dup();
     if (options.sourceDir.isD) {
         auto dir1 = pathConcat(options.sourceDir, "source");
         auto dir2 = pathConcat(options.sourceDir, "src");
         if (0) {}
         else if (dir1.isD) options.sourceDir = dir1.dup();
         else if (dir2.isD) options.sourceDir = dir2.dup();
-        else options.sourceDir = options.sourceDir.dup();
         options.dFiles ~= find(options.sourceDir, ".d", true);
     } else if (options.sourceDir.isF && options.sourceDir.endsWith(".d")) {
         options.dFiles ~= options.sourceDir;
